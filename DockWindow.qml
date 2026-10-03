@@ -19,11 +19,21 @@ PanelWindow {
   readonly property int thick: cell + pad * 2
   readonly property int along: (cfg.apps.length + 1) * step - 6 + pad * 2
 
-  readonly property int groupSize: Math.max(1, svc.docks.filter(d => d.edge === cfg.edge).length)
-  readonly property int groupPos: svc.docks.slice(0, idx).filter(d => d.edge === cfg.edge).length
+  // Which monitor this dock is on (its own choice, or the primary screen).
+  readonly property string mon: svc.monOf(cfg)
+  screen: svc.screenFor(cfg)
+  readonly property var screenNames: {
+    const out = [];
+    for (let k = 0; k < Quickshell.screens.length; k++) out.push(Quickshell.screens[k].name);
+    return out;
+  }
+  readonly property bool monitorMissing: cfg.monitor !== "" && screenNames.indexOf(cfg.monitor) < 0
 
-  readonly property var corners: svc.cornersFor(svc.docks, cfg.edge)
-  readonly property int usableW: Math.max(0, svc.edgeLen(cfg.edge) - corners.start - corners.end)
+  readonly property int groupSize: Math.max(1, svc.docks.filter(d => svc.sameGroup(d, cfg)).length)
+  readonly property int groupPos: svc.docks.slice(0, idx).filter(d => svc.sameGroup(d, cfg)).length
+
+  readonly property var corners: svc.cornersFor(svc.docks, mon, cfg.edge)
+  readonly property int usableW: Math.max(0, svc.edgeLen(mon, cfg.edge) - corners.start - corners.end)
   readonly property int slotStart: corners.start + Math.floor(usableW / groupSize) * groupPos
   readonly property int slotW: Math.max(thick, svc.slotLen(svc.docks, idx))
 
@@ -39,12 +49,12 @@ PanelWindow {
   readonly property int winThick: thick + margin
   // If the Omarchy bar is on this dock's edge, the window starts behind the
   // bar's inner side so the dock sits above it, never over it.
-  readonly property int barOffset: svc.barOffset(cfg.edge)
+  readonly property int barOffset: svc.barOffset(mon, cfg.edge)
 
   // What the colors / opacity / radius settings apply to.
   property int scopeIdx: 0
   readonly property string scope: ["dock", "edge", "all"][scopeIdx]
-  readonly property var scopeLabels: ["this dock", cfg.edge + " edge", "all docks"]
+  readonly property var scopeLabels: ["this dock", cfg.edge + " edge" + (screenNames.length > 1 ? " here" : ""), "all docks"]
 
   property int dragFrom: -1
   property int dragTo: -1
@@ -563,6 +573,14 @@ PanelWindow {
           columnSpacing: 14
           verticalItemAlignment: Grid.AlignVCenter
 
+          Text { textFormat: Text.PlainText; text: "Monitor"; color: win.pal.fg; font.pixelSize: 13; visible: win.screenNames.length > 1 || win.cfg.monitor !== "" }
+          Chips {
+            visible: win.screenNames.length > 1 || win.cfg.monitor !== ""
+            fg: win.pal.fg; ac: win.pal.ac
+            options: ["primary"].concat(win.screenNames)
+            value: win.cfg.monitor === "" ? "primary" : win.cfg.monitor
+            onPicked: v => win.svc.patch(win.idx, "monitor", v === "primary" ? "" : v)
+          }
           Text { textFormat: Text.PlainText; text: "Edge"; color: win.pal.fg; font.pixelSize: 13 }
           Chips {
             fg: win.pal.fg; ac: win.pal.ac
@@ -655,7 +673,8 @@ PanelWindow {
           width: 260
           wrapMode: Text.WordWrap
           text: "Margin is shared by every dock on the " + win.cfg.edge + " edge. Omarchy bar: "
-            + (win.svc.barInfo !== "" ? win.svc.barInfo : "not detected")
+            + (win.svc.barInfoFor(win.mon) !== "" ? win.svc.barInfoFor(win.mon) : "not detected")
+            + (win.monitorMissing ? ". Monitor " + win.cfg.monitor + " is not connected, so this dock is on the primary screen." : "")
           color: Qt.alpha(win.pal.fg, 0.7)
           font.pixelSize: 12
         }
@@ -674,7 +693,7 @@ PanelWindow {
           Chips {
             fg: win.pal.fg; ac: win.pal.ac
             options: ["Add dock (" + win.svc.docks.length + "/" + win.svc.maxDocks + ")"]
-            onPicked: { win.setOpen = false; win.svc.addDock(); }
+            onPicked: { win.setOpen = false; win.svc.addDock(win.idx); }
           }
           Chips {
             fg: win.pal.fg; ac: win.pal.ac

@@ -23,7 +23,7 @@ Scope {
   readonly property var defaults: ({
     apps: [], edge: "bottom", align: "center", stretch: false,
     autohide: false, reserve: true, style: "theme", size: 44,
-    opacity: 90, radius: 16
+    opacity: 90, radius: 16, monitor: ""
   })
   readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff" })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
@@ -35,12 +35,14 @@ Scope {
   // per edge. Every dock on an edge shares it.
   property var margins: Object.assign({}, defaultMargins)
 
-  // ---- Omarchy bar detection ----
-  // Distance from each screen edge to the inner side of the bar, 0 = no bar.
-  property var barSizes: ({ top: 0, bottom: 0, left: 0, right: 0 })
-  property string barInfo: ""
+  // ---- Omarchy bar detection (per monitor) ----
+  // barSizes[monitor][edge] = distance from that screen edge to the inner side
+  // of the bar, 0 = no bar. barInfos[monitor] = what was found, for display.
+  property var barSizes: ({})
+  property var barInfos: ({})
 
-  function barOffset(edge) { return barSizes[edge] || 0; }
+  function barOffset(mon, edge) { const b = barSizes[mon]; return b ? (b[edge] || 0) : 0; }
+  function barInfoFor(mon) { return barInfos[mon] || ""; }
   function marginOf(edge) { const v = margins[edge]; return v === undefined ? 6 : v; }
 
   function palette(style) { return style === "theme" ? theme : mono; }
@@ -63,38 +65,57 @@ Scope {
   Timer { id: noticeTimer; interval: 4000; onTriggered: root.notice = "" }
   function warn(text) { notice = text; noticeTimer.restart(); }
 
-  function edgeLen(edge) {
-    const s = Quickshell.screens[0];
+  // ---- monitors ----
+  // A dock whose monitor is empty, or not connected right now, lives on the
+  // primary screen (the shell's first screen).
+  function screenByName(name) {
+    const list = Quickshell.screens;
+    for (let k = 0; k < list.length; k++) if (list[k].name === name) return list[k];
+    return null;
+  }
+
+  function screenFor(d) {
+    const found = (d && d.monitor) ? screenByName(d.monitor) : null;
+    if (found) return found;
+    return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
+  }
+
+  function monOf(d) { const s = screenFor(d); return s ? s.name : ""; }
+  function sameGroup(a, b) { return a.edge === b.edge && monOf(a) === monOf(b); }
+
+  function edgeLen(mon, edge) {
+    const s = screenByName(mon);
     const hz = edge === "top" || edge === "bottom";
     return s ? (hz ? s.width : s.height) : (hz ? 1920 : 1080);
   }
 
   function dockThick(d) { return d.size + 28; }
 
-  // How far in from the screen edge the stuff on `edge` reaches: the Omarchy
-  // bar, plus (when docks sit there) their margin and thickness.
-  function extent(list, edge) {
-    const bar = barOffset(edge);
-    const ds = list.filter(d => d.edge === edge);
+  // How far in from the screen edge the stuff on `edge` of monitor `mon`
+  // reaches: the Omarchy bar, plus (when docks sit there) their margin and
+  // thickness.
+  function extent(list, mon, edge) {
+    const bar = barOffset(mon, edge);
+    const ds = list.filter(d => d.edge === edge && monOf(d) === mon);
     if (ds.length === 0) return bar;
     return bar + marginOf(edge) + ds.reduce((m, d) => Math.max(m, dockThick(d)), 0);
   }
 
-  function cornersFor(list, edge) {
+  function cornersFor(list, mon, edge) {
     const hz = edge === "top" || edge === "bottom";
-    return { start: extent(list, hz ? "left" : "top"),
-             end: extent(list, hz ? "right" : "bottom") };
+    return { start: extent(list, mon, hz ? "left" : "top"),
+             end: extent(list, mon, hz ? "right" : "bottom") };
   }
 
-  function usableLen(list, edge) {
-    const c = cornersFor(list, edge);
-    return Math.max(0, edgeLen(edge) - c.start - c.end);
+  function usableLen(list, mon, edge) {
+    const c = cornersFor(list, mon, edge);
+    return Math.max(0, edgeLen(mon, edge) - c.start - c.end);
   }
 
   function slotLen(list, i) {
-    const e = list[i].edge;
-    const n = list.filter(x => x.edge === e).length;
-    return Math.floor(usableLen(list, e) / n) - (n > 1 ? 6 : 0);
+    const d = list[i], mon = monOf(d);
+    const n = list.filter(x => sameGroup(x, d)).length;
+    return Math.floor(usableLen(list, mon, d.edge) / n) - (n > 1 ? 6 : 0);
   }
 
   function capacity(list, i) {
@@ -104,7 +125,7 @@ Scope {
 
   function layoutOk(list) {
     for (let i = 0; i < list.length; i++) {
-      const n = list.filter(x => x.edge === list[i].edge).length;
+      const n = list.filter(x => sameGroup(x, list[i])).length;
       if (n > maxPerEdge || list[i].apps.length > capacity(list, i)) return false;
     }
     return true;
@@ -130,13 +151,13 @@ Scope {
     return !!d && d.reserve && (!d.autohide || shown[i] === true);
   }
 
-  function edgeZone(edge) {
+  function edgeZone(mon, edge) {
     // The dock window is thickness + margin deep (see DockWindow), so the
     // reserved band matches it exactly.
     let zone = 0;
     for (let i = 0; i < docks.length; i++) {
       const d = docks[i];
-      if (d.edge === edge && reserving(i))
+      if (d.edge === edge && monOf(d) === mon && reserving(i))
         zone = Math.max(zone, dockThick(d) + marginOf(edge));
     }
     return zone;
@@ -146,15 +167,16 @@ Scope {
   function patch(i, key, value) {
     const n = docks.slice();
     if (key === "reserve") {
-      const edge = n[i].edge;
+      // Reserve is shared by every dock on the same edge of the same monitor.
+      const ref = n[i];
       for (let j = 0; j < n.length; j++) {
-        if (n[j].edge === edge) n[j] = Object.assign({}, n[j], { reserve: value });
+        if (sameGroup(n[j], ref)) n[j] = Object.assign({}, n[j], { reserve: value });
       }
     } else {
       n[i] = Object.assign({}, n[i], { [key]: value });
     }
-    if ((key === "edge" || key === "size") && !layoutOk(n)) {
-      warn("Not enough room for those icons there. Remove some icons or pick a smaller size or another edge.");
+    if ((key === "edge" || key === "size" || key === "monitor") && !layoutOk(n)) {
+      warn("Not enough room for those icons there. Remove some icons or pick a smaller size, another edge or another monitor.");
       return;
     }
     commit(n);
@@ -164,8 +186,8 @@ Scope {
   // edge, or all docks.
   function patchScope(i, key, value, scope) {
     if (scope !== "edge" && scope !== "all") { patch(i, key, value); return; }
-    const edge = docks[i].edge;
-    commit(docks.map(d => (scope === "all" || d.edge === edge)
+    const ref = docks[i];
+    commit(docks.map(d => (scope === "all" || sameGroup(d, ref))
       ? Object.assign({}, d, { [key]: value }) : d));
   }
 
@@ -196,13 +218,16 @@ Scope {
     patch(i, "apps", a);
   }
 
-  function addDock() {
+  // The new dock goes on the same monitor as the dock whose settings are open.
+  function addDock(from) {
     if (docks.length >= maxDocks) { warn("Maximum of " + maxDocks + " docks."); return; }
-    const count = e => docks.filter(d => d.edge === e).length;
+    const monitor = (from !== undefined && docks[from]) ? docks[from].monitor : "";
+    const probe = { monitor: monitor };
+    const count = e => docks.filter(d => d.edge === e && monOf(d) === monOf(probe)).length;
     const order = ["bottom", "top", "left", "right"].filter(e => count(e) < maxPerEdge)
       .sort((a, b) => count(a) - count(b));
     for (let k = 0; k < order.length; k++) {
-      const next = docks.concat([Object.assign({}, defaults, { apps: [], edge: order[k] })]);
+      const next = docks.concat([Object.assign({}, defaults, { apps: [], edge: order[k], monitor: monitor })]);
       if (layoutOk(next)) { commit(next); return; }
     }
     warn("No room for another dock. Shrink icons or remove some apps first.");
@@ -300,14 +325,7 @@ Scope {
   // `hyprctl -j layers` looks like
   //   { "DP-1": { "levels": { "0": [ {x,y,w,h,namespace,...} ], "1": [], ... } } }
   // so the layers sit one level deeper than a plain array per monitor.
-  function detectBar(json) {
-    let data;
-    try { data = JSON.parse(json); } catch (e) { return; }
-    const screen = Quickshell.screens[0];
-    if (!screen || !data) return;
-    const sw = screen.width, sh = screen.height;
-
-    const mon = (screen.name && data[screen.name]) ? data[screen.name] : data[Object.keys(data)[0]];
+  function scanBar(mon, sw, sh) {
     let layers = [];
     if (Array.isArray(mon)) layers = mon;
     else if (mon && mon.levels) {
@@ -344,10 +362,27 @@ Scope {
       if (p.size > sizes[p.edge]) sizes[p.edge] = p.size;
       info.push(p.edge + " " + p.size + "px (" + p.ns + ")");
     }
+    return { sizes: sizes, info: info.join(", ") };
+  }
+
+  function detectBar(json) {
+    let data;
+    try { data = JSON.parse(json); } catch (e) { return; }
+    const list = Quickshell.screens;
+    if (!data || list.length === 0) return;
+
+    const sizes = {}, infos = {};
+    for (let k = 0; k < list.length; k++) {
+      const s = list[k];
+      let mon = data[s.name];
+      if (mon === undefined && list.length === 1) mon = data[Object.keys(data)[0]];
+      const r = scanBar(mon, s.width, s.height);
+      sizes[s.name] = r.sizes;
+      infos[s.name] = r.info;
+    }
 
     if (JSON.stringify(sizes) !== JSON.stringify(root.barSizes)) root.barSizes = sizes;
-    const text = info.join(", ");
-    if (root.barInfo !== text) root.barInfo = text;
+    if (JSON.stringify(infos) !== JSON.stringify(root.barInfos)) root.barInfos = infos;
   }
 
   Timer {
@@ -369,45 +404,18 @@ Scope {
     }
   }
 
-  // ---- reserve-space spacers ----
-  PanelWindow {
-    anchors.top: true
-    implicitWidth: 1
-    implicitHeight: 1
-    exclusionMode: root.edgeZone("top") > 0 ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: root.edgeZone("top")
-    color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "omarchy-dock-reserve"
-  }
-  PanelWindow {
-    anchors.bottom: true
-    implicitWidth: 1
-    implicitHeight: 1
-    exclusionMode: root.edgeZone("bottom") > 0 ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: root.edgeZone("bottom")
-    color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "omarchy-dock-reserve"
-  }
-  PanelWindow {
-    anchors.left: true
-    implicitWidth: 1
-    implicitHeight: 1
-    exclusionMode: root.edgeZone("left") > 0 ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: root.edgeZone("left")
-    color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "omarchy-dock-reserve"
-  }
-  PanelWindow {
-    anchors.right: true
-    implicitWidth: 1
-    implicitHeight: 1
-    exclusionMode: root.edgeZone("right") > 0 ? ExclusionMode.Normal : ExclusionMode.Ignore
-    exclusiveZone: root.edgeZone("right")
-    color: "transparent"
-    WlrLayershell.layer: WlrLayer.Top
-    WlrLayershell.namespace: "omarchy-dock-reserve"
+  // ---- reserve-space spacers: one per monitor and edge ----
+  Variants {
+    model: Quickshell.screens
+
+    Scope {
+      id: perScreen
+      required property var modelData
+
+      Spacer { svc: root; screen: perScreen.modelData; edge: "top" }
+      Spacer { svc: root; screen: perScreen.modelData; edge: "bottom" }
+      Spacer { svc: root; screen: perScreen.modelData; edge: "left" }
+      Spacer { svc: root; screen: perScreen.modelData; edge: "right" }
+    }
   }
 }

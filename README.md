@@ -1,4 +1,4 @@
-# Omarchy Multi-Docks
+# Multi-Docks
 
 An [Omarchy](https://omarchy.org) shell service that gives you up to twelve independent docks: pinned apps, drag-to-reorder icons, live window previews, right-click app menus, auto-hide, reserved screen space, per-edge margins and theme-aware colors.
 
@@ -8,7 +8,8 @@ A dock appears at the bottom of the screen the first time you enable the plugin.
 
 ## Features
 
-- **Up to 12 docks, 3 per edge**: put docks on the bottom, top, left and right edges at the same time. Docks on the same edge share it in equal slots, so they never overlap.
+- **Up to 12 docks, 3 per edge**: put docks on the bottom, top, left and right edges at the same time. Docks on the same edge of the same monitor share it in equal slots, so they never overlap.
+- **Multi-monitor**: choose a monitor for each dock. Every monitor has its own edges, slots, Omarchy bar detection and reserved space, so a bottom dock on your laptop screen and another on an external display do not affect each other.
 - **Pinned apps from desktop entries**: click **+**, search by name, click an app. Apps already pinned to that dock are hidden from the list, and the list is sorted alphabetically.
 - **Drag to reorder**: press an icon and drag along the dock. The other icons slide out of the way while you drag and the new order is saved when you release.
 - **Smart click**: a click launches the app if it has no windows, otherwise it focuses the next window of that app, so repeated clicks cycle through all of them.
@@ -25,7 +26,15 @@ A dock appears at the bottom of the screen the first time you enable the plugin.
 - **Flexible placement**: choose the edge, align the dock to the start, center or end of that edge, or stretch it to the full length.
 - **Click-through margins**: only the dock itself catches the mouse. The margin, the empty part of the window and the hidden dock do not block clicks on the windows beneath.
 - **Layout guard**: if a change would not leave enough room for the icons (smaller screen, bigger icons, more docks), the plugin refuses it and tells you why instead of clipping icons.
-- **No dependencies**: no helper scripts, no install hooks, no network and no sudo.
+- **No extra packages**: it only needs what Omarchy 4 already ships (see Requirements). No helper scripts, no install hooks, no network and no sudo.
+
+## Requirements
+
+- Omarchy 4 (Quattro) with shell plugin support.
+- Hyprland, with `hyprctl` on your `PATH` (it ships with Hyprland). It is used to find the Omarchy bar and the dock windows rely on Hyprland-specific Quickshell modules.
+- Quickshell, which comes with Omarchy 4.
+
+Nothing else needs to be installed.
 
 ## Install
 
@@ -52,7 +61,7 @@ omarchy restart shell
 2. Open one of them, then hover its icon to see the live preview.
 3. Drag an icon to a new position.
 4. Right-click empty dock space, turn **Auto-hide** on and move the pointer away. Touch the screen edge to bring it back.
-5. Open the settings again and use **Add dock** to create a second dock on another edge.
+5. Open the settings again and use **Add dock** to create a second dock on another edge. With an external monitor connected, use **Monitor** to move a dock to it.
 
 ## Usage
 
@@ -89,6 +98,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 
 | Setting | File key | Default | Meaning |
 | --- | --- | --- | --- |
+| Monitor | `monitor` | primary | `primary` (the shell's first screen) or the name of a connected monitor such as `DP-1`. Only shown when more than one monitor is connected. If the chosen monitor is unplugged, the dock moves to the primary screen until it comes back |
 | Edge | `edge` | bottom | `bottom`, `top`, `left` or `right` |
 | Position | `align` | center | `start`, `center` or `end` of that edge (inside the dock's slot) |
 | Full length | `stretch` | off | Stretch the dock across the whole slot instead of fitting only the icons |
@@ -115,7 +125,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 
 | Control | What it does |
 | --- | --- |
-| Add dock (n/12) | Creates a new empty dock on the edge with the fewest docks, as long as there is room |
+| Add dock (n/12) | Creates a new empty dock on the same monitor, on the edge with the fewest docks, as long as there is room |
 | Remove this dock | Deletes this dock. The last remaining dock cannot be removed |
 | Icons: n / max | How many icons this dock holds and how many fit at the current size and screen length |
 
@@ -134,7 +144,8 @@ Right-click empty dock space to open the settings of that dock. Everything appli
       "style": "theme",
       "size": 44,
       "opacity": 90,
-      "radius": 16
+      "radius": 16,
+      "monitor": ""
     }
   ],
   "margins": { "top": 6, "bottom": 6, "left": 6, "right": 6 }
@@ -160,6 +171,8 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 ### Layout and flexibility
 
 - **Four edges at once**: a bottom dock for daily apps, a left dock for tools, a top dock for something else, all at the same time.
+- **One dock per screen, or many**: put a different dock on each monitor, with its own apps and settings, or keep everything on one screen.
+- **Survives unplugging**: if a monitor disappears, its docks move to the primary screen instead of vanishing, and go back when it returns.
 - **Many docks, one plugin**: up to 12 docks, each with its own apps, size, colors and behaviour.
 - **Per-dock behaviour**: one dock can auto-hide while another stays fixed and reserves space.
 - **Per-edge margins**: set the spacing once for an edge and every dock there follows it.
@@ -189,14 +202,16 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 ## Disadvantages
 
 - **Hyprland only**: previews, focus handling and bar detection use Hyprland-specific parts of Quickshell and `hyprctl`. It will not work on another compositor.
-- **Primary screen only**: docks open on the shell's default monitor. There is no per-dock monitor setting and no multi-monitor support yet.
+- **Monitor settings are partly shared**: margins are one value per edge for all monitors, and the "Look applies to" edge option affects the docks on that edge of the same monitor only. There is no per-monitor margin yet.
+- **Monitors are matched by name**: names like `DP-1` can change when you swap cables or ports. A dock whose monitor name no longer exists sits on the primary screen until you pick a monitor again.
+- **Limited multi-monitor testing**: this was written from the code and checked with simulated layouts, so unusual setups (mixed scaling, rotated screens, hot-plugging many monitors) may need fixes.
 - **Pinned apps only**: apps that are running but not pinned do not appear in the dock. It is a launcher with window awareness, not a full task switcher.
 - **Desktop entries only**: only apps that have a desktop entry can be pinned.
 - **App matching can miss**: windows are matched to icons by app id. An app whose window id differs from its desktop entry can show no dot and no preview, and clicking it launches a new instance instead of focusing the existing window.
-- **Hard limits**: 12 docks in total, 3 per edge, and a limited number of icons per dock that depends on icon size and screen length.
+- **Hard limits**: 12 docks in total, 3 per edge of each monitor, and a limited number of icons per dock that depends on icon size and the length of that monitor's edge.
 - **Bar detection is a heuristic**: the bar is found by name or by shape, and re-checked every few seconds. A bar with an unusual name or shape may not be found, and a change of bar size takes a few seconds to show. The workaround is to raise the margin on that edge.
 - **Reserve space and auto-hide together re-tile your windows**: every time the dock shows or hides, tiled windows resize. If that feels busy, use either reserve or auto-hide, not both.
-- **Reserve and margin are edge-wide**: changing them on one dock changes every dock on that edge, which can surprise you when the rest of the settings are per dock.
+- **Reserve and margin are edge-wide**: changing Reserve space on one dock changes every dock on that edge of the same monitor, and Margin changes that edge on every monitor. This can surprise you when the rest of the settings are per dock.
 - **Look scope is not remembered**: "Look applies to" returns to *this dock* after a shell restart.
 - **Close closes everything**: *Close window(s)* closes every window of that app at once. There is no per-window close entry.
 - **Mouse-centred**: there is no keyboard navigation for the dock, and the sliders are mouse or scroll only.
@@ -211,9 +226,10 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 
 - **One window per dock.** A layer-shell panel on the `Top` layer, named `omarchy-dock`, is created for every dock. Its input region covers only the visible dock, so everything else is click-through.
 - **Margin lives inside the window.** The window is icon thickness plus margin deep and the dock is inset by the margin. When the dock hides, the strip that stays visible sits on the edge itself, which is what makes the auto-hide trigger reach the screen edge.
-- **Slots.** When several docks share an edge, the usable length is split evenly between them. The usable length excludes the corners taken by neighbouring edges, including the Omarchy bar and the docks on those edges.
-- **Reserved space.** The compositor only honours an exclusive zone for a surface anchored to a single edge, so each edge has a tiny invisible spacer window that carries the zone. The zone is the dock thickness plus its margin, which makes the reserved band exactly as big as the dock window. Docks with auto-hide report whether they are visible, and the zone is zero while they are hidden.
-- **Bar detection.** Every few seconds the service runs `hyprctl -j layers` and saves the output to a cache file. It prefers a layer whose name contains "bar" and otherwise accepts any thin strip along a screen edge. The distance from the edge to the inner side of the bar becomes an offset for docks on that edge, and a corner for docks on neighbouring edges.
+- **Monitors.** Each dock is shown on the screen it is assigned to, or on the primary screen when none is set or the chosen one is not connected. All layout is calculated per monitor, using that screen's own size.
+- **Slots.** When several docks share an edge of a monitor, the usable length is split evenly between them. The usable length excludes the corners taken by neighbouring edges of the same monitor, including the Omarchy bar and the docks on those edges.
+- **Reserved space.** The compositor only honours an exclusive zone for a surface anchored to a single edge, so each edge of each monitor has a tiny invisible spacer window that carries the zone. The zone is the dock thickness plus its margin, which makes the reserved band exactly as big as the dock window. Docks with auto-hide report whether they are visible, and the zone is zero while they are hidden.
+- **Bar detection.** Every few seconds the service runs `hyprctl -j layers` and saves the output to a cache file. For every connected monitor it prefers a layer whose name contains "bar" and otherwise accepts any thin strip along a screen edge. The distance from the edge to the inner side of the bar becomes an offset for docks on that edge, and a corner for docks on neighbouring edges.
 - **Theme colors.** The service reads `background`, `foreground` and `accent` from the active Omarchy theme's `colors.toml` (`~/.local/state/omarchy/current/theme/colors.toml`, with the older `~/.config/omarchy/current/theme/colors.toml` as a fallback). The file is watched and also re-read every second.
 - **Window matching.** Open windows come from the compositor's toplevel list and are matched to a desktop entry by app id, its startup class or the last part of its id.
 - **Previews.** A preview is a popup with one live screen-capture view per window. It opens after a short hover delay, closes shortly after the pointer leaves both the icon and the preview, and is suppressed while you drag or have a menu open.
@@ -225,6 +241,8 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 - Your docks and margins live in `~/.config/omarchy-dock/config.json`. The output of `hyprctl -j layers` is cached in `~/.cache/omarchy-dock/layers.json`. Nothing else is stored.
 - The plugin reads Omarchy's theme file, installed desktop entries and the list of open windows. Window captures are used only while a preview is open and are never saved.
 - The only external process it runs is `hyprctl`. No network access. Text that comes from other programs (window titles, app names, action names, the bar's layer name) is always rendered as plain text, never as rich text, so it cannot trigger remote content loading.
+- It never edits Omarchy's own configuration (`shell.json`, themes, Hyprland config).
+- If `config.json` cannot be parsed, the docks start with defaults and the next change you make replaces that file. Keep a backup if you edit it by hand.
 - Plugins run unsandboxed in the shell process. This one writes only its own config and cache files.
 
 ## Files
@@ -232,11 +250,13 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | Omarchy plugin manifest |
-| `Service.qml` | Config, theme colors, bar detection, layout math, reserve spacers, one window per dock |
+| `Service.qml` | Config, theme colors, per-monitor bar detection, layout math, one window per dock |
+| `Spacer.qml` | Invisible window that reserves space on one edge of one monitor |
 | `DockWindow.qml` | A single dock: icons, drag, previews, menus, add-app picker and settings popup |
 | `Chips.qml` | Small option picker used in the settings |
 | `Slider.qml` | Small slider used in the settings |
 | `LICENSE` | MIT license |
+| `preview.png` | Screenshot shown in this README and the marketplace listing |
 
 ## Development
 
@@ -255,7 +275,7 @@ omarchy plugin validate .
 To lint the QML:
 
 ```bash
-qmllint -I "$OMARCHY_PATH/shell" Service.qml DockWindow.qml Chips.qml Slider.qml
+qmllint -I "$OMARCHY_PATH/shell" Service.qml DockWindow.qml Spacer.qml Chips.qml Slider.qml
 ```
 
 ## Updating
