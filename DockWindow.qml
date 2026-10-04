@@ -135,7 +135,7 @@ PanelWindow {
   readonly property bool anyUrgent: {
     if (cfg.attention === "off") return false;
     for (let k = 0; k < cfg.apps.length; k++) {
-      const ws = windowsOf(DesktopEntries.byId(cfg.apps[k]));
+      const ws = windowsOf((DesktopEntries.applications.values, DesktopEntries.byId(cfg.apps[k])));
       for (let j = 0; j < ws.length; j++) if (isUrgent(ws[j])) return true;
     }
     return false;
@@ -228,7 +228,20 @@ PanelWindow {
           id: slot
           required property string modelData
           required property int index
-          readonly property var entry: DesktopEntries.byId(modelData)
+          // Reading .values makes this binding re-run whenever Quickshell rescans
+          // the desktop entries, so the entry can never go stale or dangling.
+          readonly property var entry: { DesktopEntries.applications.values; return DesktopEntries.byId(modelData); }
+          // Last icon name that resolved. Kept so a rescan, a theme change or a
+          // momentarily missing entry does not blank the icon.
+          property string iconName: ""
+          function refreshIcon() {
+            const n = (entry && entry.icon) ? entry.icon : "";
+            if (n !== "") { iconName = n; return; }
+            if (iconName === "" && wins.length > 0) iconName = wins[0].appId || "";
+          }
+          onEntryChanged: refreshIcon()
+          onWinsChanged: refreshIcon()
+          Component.onCompleted: refreshIcon()
           readonly property var wins: win.windowsOf(entry)
           readonly property bool attention: win.cfg.attention !== "off" && wins.some(t => win.isUrgent(t))
           property bool dragging: false
@@ -262,7 +275,7 @@ PanelWindow {
           IconImage {
             anchors.centerIn: parent
             implicitSize: win.cfg.size
-            source: Quickshell.iconPath(slot.entry ? slot.entry.icon : "", "application-x-executable")
+            source: Quickshell.iconPath(slot.iconName, "application-x-executable")
           }
 
           // Soft glow around the icon while an app wants attention.
@@ -383,13 +396,26 @@ PanelWindow {
 
   PopupWindow {
     id: previewPop
-    visible: win.previewSlot !== null && win.previewSlot.wins.length > 0
-    anchor.item: win.previewSlot
+    // Keep the last window list so the popup never collapses into a tiny
+    // empty rounded box (the black "bullet") while it is being hidden.
+    property var shownWins: []
+    property var shownSlot: null
+    Connections {
+      target: win
+      function onPreviewSlotChanged() {
+        if (win.previewSlot !== null && win.previewSlot.wins.length > 0) {
+          previewPop.shownSlot = win.previewSlot;
+          previewPop.shownWins = win.previewSlot.wins;
+        }
+      }
+    }
+    visible: win.previewSlot !== null && win.previewSlot.wins.length > 0 && shownWins.length > 0
+    anchor.item: shownSlot
     anchor.edges: win.popEdge
     anchor.gravity: win.popEdge
     anchor.adjustment: PopupAdjustment.Slide
-    implicitWidth: previewRow.implicitWidth + 16
-    implicitHeight: previewRow.implicitHeight + 16
+    implicitWidth: Math.max(previewRow.implicitWidth + 16, 236)
+    implicitHeight: Math.max(previewRow.implicitHeight + 16, 166)
     color: "transparent"
 
     HoverHandler {
@@ -400,6 +426,7 @@ PanelWindow {
     Rectangle {
       anchors.fill: parent
       radius: 14
+      visible: previewPop.visible && previewPop.shownWins.length > 0
       color: win.pal.bg
       border.width: 1
       border.color: Qt.alpha(win.pal.fg, 0.18)
@@ -410,7 +437,7 @@ PanelWindow {
         spacing: 8
 
         Repeater {
-          model: win.previewSlot ? win.previewSlot.wins : []
+          model: previewPop.shownWins
 
           delegate: Item {
             id: card
