@@ -4,7 +4,7 @@ An [Omarchy](https://omarchy.org) shell service that gives you up to twelve inde
 
 A dock appears at the bottom of the screen the first time you enable the plugin. Click **+** to pin apps, right-click empty dock space to open its settings, and add more docks on any edge when one is not enough.
 
-![Omarchy Dock preview](preview.png)
+![Multi-Docks preview](preview.png)
 
 ## Features
 
@@ -14,6 +14,7 @@ A dock appears at the bottom of the screen the first time you enable the plugin.
 - **Drag to reorder**: press an icon and drag along the dock. The other icons slide out of the way while you drag and the new order is saved when you release.
 - **Smart click**: a click launches the app if it has no windows, otherwise it focuses the next window of that app, so repeated clicks cycle through all of them.
 - **Live window previews**: hover an icon that has open windows to see a live capture of each window with its title. Click a card to focus that exact window. The preview stays open while your pointer is on it.
+- **Attention indicator**: when an app asks for attention (a chat message, a finished build, a terminal bell), its icon gets a red dot and a soft pulsing glow, and the dock border pulses too, so it is visible even on an auto-hidden dock's edge strip. Click the icon and the window that asked for attention is focused first. It clears on its own once that window is focused.
 - **Running indicator**: a small dot in your accent color marks every app that has open windows. It sits on the side of the icon facing the screen edge, so it follows the dock to any edge.
 - **Right-click app menu**: *New window*, the app's own desktop actions (for example "New private window"), one *Focus* entry per open window, *Close window(s)* and *Remove from dock*.
 - **Auto-hide**: the dock slides off screen and leaves a thin strip on the edge. Touch the strip to bring it back. It stays open while a menu or popup is open and lingers briefly after the pointer leaves, so it never snaps shut under your cursor.
@@ -70,7 +71,7 @@ omarchy restart shell
 | Pin an app | Click **+**, search, click an app |
 | Reorder | Press and drag an icon along the dock, release to drop |
 | Launch an app | Click its icon when it has no windows |
-| Focus / cycle windows | Click an icon of an app that has windows. Each click moves to the next window |
+| Focus / cycle windows | Click an icon of an app that has windows. Each click moves to the next window. If one window is asking for attention, it is focused first |
 | Window previews | Hover an icon that has open windows, click a preview to focus that window |
 | App menu | Right-click an icon |
 | Open dock settings | Right-click empty dock space or right-click **+** |
@@ -117,6 +118,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 | --- | --- | --- | --- |
 | Look applies to | n/a | this dock | How far Colors, Opacity and Corner radius reach: `this dock`, `<edge> edge` or `all docks`. Not saved, it resets when the shell restarts |
 | Colors | `style` | theme | `theme` follows the active Omarchy theme, `monochrome` is fixed grey and white |
+| Attention | `attention` | pulse | What an app that asks for attention looks like (see *Attention on Omarchy* below for the one-line Hyprland rule it needs): `off`, `dot` (red dot only) or `pulse` (dot, glowing icon and pulsing border). Follows **Look applies to** |
 | Icon size | `size` | 44 | Icon size in px, 1 to 64 |
 | Opacity | `opacity` | 90 | Dock background opacity in percent, 1 to 100 |
 | Corner radius | `radius` | 16 | Roundness of the dock in px, 1 to 64 |
@@ -128,6 +130,18 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 | Add dock (n/12) | Creates a new empty dock on the same monitor, on the edge with the fewest docks, as long as there is room |
 | Remove this dock | Deletes this dock. The last remaining dock cannot be removed |
 | Icons: n / max | How many icons this dock holds and how many fit at the current size and screen length |
+
+### Attention on Omarchy
+
+Omarchy's Hyprland defaults set `focus_on_activate = true`. That makes a window that asks for attention jump to the front and take keyboard focus right away, so it never gets the "urgent" mark that the attention indicator reacts to. Only apps with their own rule (Telegram, for example) stay urgent.
+
+To get the indicator for an app, tell Hyprland not to focus it when it asks. Add a line like this at the bottom of `~/.config/hypr/hyprland.lua`, using the app's window class:
+
+```lua
+o.window("foot", { focus_on_activate = false })
+```
+
+The rule takes effect after a Hyprland reload (`hyprctl reload`). Find an app's class with `hyprctl clients | grep class`. Apps without such a rule keep Omarchy's behaviour and simply come to the front.
 
 ### Config file
 
@@ -145,7 +159,8 @@ Right-click empty dock space to open the settings of that dock. Everything appli
       "size": 44,
       "opacity": 90,
       "radius": 16,
-      "monitor": ""
+      "monitor": "",
+      "attention": "pulse"
     }
   ],
   "margins": { "top": 6, "bottom": 6, "left": 6, "right": 6 }
@@ -163,6 +178,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 - **Fast to set up**: a working dock exists from the first start, and pinning an app is two clicks.
 - **Everything in one place**: pinning, reordering, previews, menus and settings all live on the dock itself, with no separate settings app.
 - **Instant feedback**: every setting applies the moment you change it, no restart and no apply button.
+- **You notice what needs you**: urgent apps are visible at a glance, even in the corner of your eye, without notification popups. The dot, the glowing icon and the highlighted preview card all point at the right window.
 - **Window-aware, not just a launcher**: dots, focus cycling, per-window focus and close make it useful for switching, not only for starting apps.
 - **Previews you can trust**: they are live captures of the real window, not static icons.
 - **Menus that match the app**: the right-click menu includes the actions the app itself declares, so you get its "new private window" and similar shortcuts for free.
@@ -216,6 +232,9 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 - **Close closes everything**: *Close window(s)* closes every window of that app at once. There is no per-window close entry.
 - **Mouse-centred**: there is no keyboard navigation for the dock, and the sliders are mouse or scroll only.
 - **No extras of full-featured docks**: no notification badges, progress bars, tooltips, folders or stacks, dragging files onto icons, or dragging icons between docks.
+- **Attention needs a per-app rule on Omarchy**: Omarchy focuses windows that ask for attention straight away, so the indicator only appears for apps you exempt with `focus_on_activate = false` (see *Attention on Omarchy*). Apps that never ask (many Electron apps only show a tray badge) will not light up either.
+- **Attention is per app, not per window**: if an app has several windows and one asks for attention, all of that app's windows are highlighted, and a click focuses the first one it finds. The mark itself clears per window, when that window is focused.
+- **No counts or sounds**: the attention indicator is a highlight only. It does not show how many messages are waiting and does not play a sound.
 - **Colors are limited**: two color modes only (theme or monochrome), with no custom color picker.
 - **Hand edits need a restart**: the config file is read at startup and only margins are range-checked, so a typo in other values can give odd results.
 - **Frequent small writes**: dragging a slider saves the config on every step.
@@ -231,6 +250,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 - **Reserved space.** The compositor only honours an exclusive zone for a surface anchored to a single edge, so each edge of each monitor has a tiny invisible spacer window that carries the zone. The zone is the dock thickness plus its margin, which makes the reserved band exactly as big as the dock window. Docks with auto-hide report whether they are visible, and the zone is zero while they are hidden.
 - **Bar detection.** Every few seconds the service runs `hyprctl -j layers` and saves the output to a cache file. For every connected monitor it prefers a layer whose name contains "bar" and otherwise accepts any thin strip along a screen edge. The distance from the edge to the inner side of the bar becomes an offset for docks on that edge, and a corner for docks on neighbouring edges.
 - **Theme colors.** The service reads `background`, `foreground` and `accent` from the active Omarchy theme's `colors.toml` (`~/.local/state/omarchy/current/theme/colors.toml`, with the older `~/.config/omarchy/current/theme/colors.toml` as a fallback). The file is watched and also re-read every second.
+- **Attention.** Hyprland announces a window that asks for attention with an `urgent` event and the service follows those events itself: the window is remembered until it is focused or closed. When one arrives, `hyprctl -j clients` is read once to learn the app class of that window, and every icon of that app shows the glow, the bigger dot and the border pulse. The attention color is `color1` from the Omarchy theme (a fixed soft red in monochrome).
 - **Window matching.** Open windows come from the compositor's toplevel list and are matched to a desktop entry by app id, its startup class or the last part of its id.
 - **Previews.** A preview is a popup with one live screen-capture view per window. It opens after a short hover delay, closes shortly after the pointer leaves both the icon and the preview, and is suppressed while you drag or have a menu open.
 - **Popups.** Menus, the app picker, the settings and previews open on the side of the dock facing the screen. A focus grab closes them when you click elsewhere, and the app picker takes keyboard focus only while it is open.
@@ -238,7 +258,7 @@ Right-click empty dock space to open the settings of that dock. Everything appli
 
 ## Data and privacy
 
-- Your docks and margins live in `~/.config/omarchy-dock/config.json`. The output of `hyprctl -j layers` is cached in `~/.cache/omarchy-dock/layers.json`. Nothing else is stored.
+- Your docks and margins live in `~/.config/omarchy-dock/config.json`. The output of `hyprctl -j layers` is cached in `~/.cache/omarchy-dock/layers.json`, and when a window asks for attention the output of `hyprctl -j clients` (which includes window titles) is cached in `~/.cache/omarchy-dock/clients.json`. Nothing else is stored.
 - The plugin reads Omarchy's theme file, installed desktop entries and the list of open windows. Window captures are used only while a preview is open and are never saved.
 - The only external process it runs is `hyprctl`. No network access. Text that comes from other programs (window titles, app names, action names, the bar's layer name) is always rendered as plain text, never as rich text, so it cannot trigger remote content loading.
 - It never edits Omarchy's own configuration (`shell.json`, themes, Hyprland config).

@@ -114,9 +114,39 @@ PanelWindow {
     });
   }
 
+  // Hyprland marks a window urgent when it asks for attention (a chat message,
+  // a finished build, ...) and clears the flag once the window is focused.
+  // The service follows Hyprland's urgent events and knows the app class of
+  // each urgent window. As a second source, Quickshell's own per-window flag is
+  // used when this Quickshell version has it.
+  function isUrgent(t) {
+    if (!t) return false;
+    if (svc.classUrgent(t.appId)) return true;
+    try {
+      const list = Hyprland.toplevels.values;
+      for (let k = 0; k < list.length; k++) {
+        if (list[k].wayland === t && list[k].urgent) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // Every window that is asking for attention, across all docks.
+  readonly property bool anyUrgent: {
+    if (cfg.attention === "off") return false;
+    for (let k = 0; k < cfg.apps.length; k++) {
+      const ws = windowsOf(DesktopEntries.byId(cfg.apps[k]));
+      for (let j = 0; j < ws.length; j++) if (isUrgent(ws[j])) return true;
+    }
+    return false;
+  }
+
   function activate(e, ws) {
     if (!e) return;
     if (ws.length === 0) { e.execute(); return; }
+    // A window that wants attention comes first, then normal cycling.
+    const u = ws.find(t => isUrgent(t));
+    if (u && cfg.attention !== "off") { u.activate(); return; }
     const i = ws.findIndex(t => t.activated);
     ws[(i + 1) % ws.length].activate();
   }
@@ -157,8 +187,15 @@ PanelWindow {
     y: win.hz ? (win.cfg.edge === "top" ? win.margin - hidden : parent.height - height - win.margin + hidden) : placeAlong(parent.height)
     radius: win.cfg.radius
     color: Qt.alpha(win.pal.bg, win.cfg.opacity / 100)
-    border.width: 1
-    border.color: Qt.alpha(win.pal.fg, 0.14)
+    border.width: win.anyUrgent ? 2 : 1
+    border.color: win.anyUrgent ? Qt.alpha(win.pal.hot, barPulse) : Qt.alpha(win.pal.fg, 0.14)
+    property real barPulse: 0.9
+    SequentialAnimation on barPulse {
+      running: win.anyUrgent && win.cfg.attention === "pulse"
+      loops: Animation.Infinite
+      NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+      NumberAnimation { to: 0.9; duration: 900; easing.type: Easing.InOutSine }
+    }
 
     Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -193,6 +230,7 @@ PanelWindow {
           required property int index
           readonly property var entry: DesktopEntries.byId(modelData)
           readonly property var wins: win.windowsOf(entry)
+          readonly property bool attention: win.cfg.attention !== "off" && wins.some(t => win.isUrgent(t))
           property bool dragging: false
           property real off: 0
           readonly property real shift: {
@@ -227,10 +265,28 @@ PanelWindow {
             source: Quickshell.iconPath(slot.entry ? slot.entry.icon : "", "application-x-executable")
           }
 
+          // Soft glow around the icon while an app wants attention.
+          Rectangle {
+            id: glow
+            anchors.fill: parent
+            radius: 12
+            visible: slot.attention && win.cfg.attention === "pulse"
+            color: Qt.alpha(win.pal.hot, 0.18)
+            border.width: 2
+            border.color: win.pal.hot
+            opacity: 0.9
+            SequentialAnimation on opacity {
+              running: glow.visible
+              loops: Animation.Infinite
+              NumberAnimation { to: 0.25; duration: 900; easing.type: Easing.InOutSine }
+              NumberAnimation { to: 0.9; duration: 900; easing.type: Easing.InOutSine }
+            }
+          }
+
           Rectangle {
             visible: slot.wins.length > 0
-            width: 5; height: 5; radius: 3
-            color: win.pal.ac
+            width: slot.attention ? 8 : 5; height: width; radius: width / 2
+            color: slot.attention ? win.pal.hot : win.pal.ac
             x: win.hz ? (parent.width - width) / 2 : (win.cfg.edge === "left" ? 1 : parent.width - width - 1)
             y: win.hz ? (win.cfg.edge === "top" ? 1 : parent.height - height - 1) : (parent.height - height) / 2
           }
@@ -359,6 +415,7 @@ PanelWindow {
           delegate: Item {
             id: card
             required property var modelData
+            readonly property bool urgent: win.cfg.attention !== "off" && win.isUrgent(modelData)
             width: 220
             height: 150
 
@@ -366,6 +423,8 @@ PanelWindow {
               anchors.fill: parent
               radius: 10
               color: Qt.alpha(win.pal.fg, cardMa.containsMouse ? 0.16 : 0.06)
+              border.width: card.urgent ? 2 : 0
+              border.color: win.pal.hot
             }
             ScreencopyView {
               x: 6; y: 6
@@ -629,6 +688,13 @@ PanelWindow {
             options: ["theme", "monochrome"]
             value: win.cfg.style
             onPicked: v => win.svc.patchScope(win.idx, "style", v, win.scope)
+          }
+          Text { textFormat: Text.PlainText; text: "Attention"; color: win.pal.fg; font.pixelSize: 13 }
+          Chips {
+            fg: win.pal.fg; ac: win.pal.ac
+            options: ["off", "dot", "pulse"]
+            value: win.cfg.attention
+            onPicked: v => win.svc.patchScope(win.idx, "attention", v, win.scope)
           }
           Text { textFormat: Text.PlainText; text: "Icon size"; color: win.pal.fg; font.pixelSize: 13 }
           Slider {

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 
 Scope {
@@ -23,9 +24,11 @@ Scope {
   readonly property var defaults: ({
     apps: [], edge: "bottom", align: "center", stretch: false,
     autohide: false, reserve: true, style: "theme", size: 44,
-    opacity: 90, radius: 16, monitor: ""
+    opacity: 90, radius: 16, monitor: "", attention: "pulse"
   })
-  readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff" })
+  // `hot` is the attention color. Monochrome keeps a fixed soft red, because a grey
+  // pulse would be invisible.
+  readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e" })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
 
   property var docks: [Object.assign({}, defaults)]
@@ -269,7 +272,8 @@ Scope {
     const next = {
       bg: pick("background") || mono.bg,
       fg: pick("foreground") || mono.fg,
-      ac: pick("accent") || mono.ac
+      ac: pick("accent") || mono.ac,
+      hot: pick("color1") || pick("color9") || mono.hot
     };
     if (JSON.stringify(next) !== JSON.stringify(theme)) theme = next;
   }
@@ -320,6 +324,95 @@ Scope {
     blockLoading: true
     printErrors: false
     onLoaded: root.detectBar(text())
+  }
+
+  // ---- attention (windows that ask for focus) ----
+  // Hyprland announces them with an `urgent>>ADDRESS` event and drops the mark
+  // when the window is focused or closed. We follow those events ourselves, so
+  // this does not depend on how much of Hyprland's window state Quickshell
+  // exposes. urgentMap: window address (hex, no 0x) -> app class, "" until known.
+  property var urgentMap: ({})
+  readonly property string clientsPath: cacheDir + "/clients.json"
+  property bool clientsAgain: false
+
+  function classUrgent(cls) {
+    const c = String(cls || "").toLowerCase();
+    if (c === "") return false;
+    for (const k in urgentMap) if (urgentMap[k] === c) return true;
+    return false;
+  }
+
+  function normAddr(a) {
+    return String(a || "").trim().toLowerCase().split(",")[0].replace(/^0x/, "");
+  }
+
+  function markUrgent(a) {
+    const addr = normAddr(a);
+    if (addr === "") return;
+    if (!(addr in urgentMap)) {
+      const n = Object.assign({}, urgentMap);
+      n[addr] = "";
+      urgentMap = n;
+    }
+    probeClients();
+  }
+
+  function clearUrgent(a) {
+    const addr = normAddr(a);
+    if (addr === "" || !(addr in urgentMap)) return;
+    const n = Object.assign({}, urgentMap);
+    delete n[addr];
+    urgentMap = n;
+  }
+
+  function probeClients() {
+    if (clientsProbe.running) { clientsAgain = true; return; }
+    clientsProbe.running = true;
+  }
+
+  // Fill in the class of each urgent window, and forget windows that are gone.
+  function resolveClients(json) {
+    let list;
+    try { list = JSON.parse(json); } catch (e) { return; }
+    if (!Array.isArray(list)) return;
+    const byAddr = {};
+    for (const c of list) byAddr[normAddr(c.address)] = String(c["class"] || c["initialClass"] || "").toLowerCase();
+    const n = {};
+    let changed = false;
+    for (const k in urgentMap) {
+      if (!(k in byAddr)) { changed = true; continue; }
+      n[k] = byAddr[k];
+      if (n[k] !== urgentMap[k]) changed = true;
+    }
+    if (changed) urgentMap = n;
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event.name === "urgent") root.markUrgent(event.data);
+      else if (event.name === "activewindowv2" || event.name === "closewindow") root.clearUrgent(event.data);
+    }
+  }
+
+  Process {
+    id: clientsProbe
+    command: ["sh", "-c",
+      'mkdir -p "$1" && hyprctl -j clients > "$1/clients.json" 2>/dev/null || true',
+      "sh", root.cacheDir]
+    running: false
+    onExited: {
+      clientsFile.reload();
+      if (root.clientsAgain) { root.clientsAgain = false; running = true; }
+    }
+  }
+
+  FileView {
+    id: clientsFile
+    path: root.clientsPath
+    blockLoading: true
+    printErrors: false
+    onLoaded: root.resolveClients(text())
   }
 
   // `hyprctl -j layers` looks like
