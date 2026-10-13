@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.qempexe.multi-docks",
   "name": "Multi-Docks",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "author": "qempexe",
   "license": "MIT",
-  "description": "Up to 12 configurable docks: pinned apps, drag to reorder, live window previews, right-click menus, auto-hide, reserved space, theme or monochrome colors.",
+  "description": "Up to 12 configurable docks: pinned apps, drag to reorder, live window previews, right-click menus, auto-hide with eight effects, reserved space, theme or monochrome colors.",
   "kinds": [
     "service"
   ],

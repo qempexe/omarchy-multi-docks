@@ -24,8 +24,63 @@ Scope {
   readonly property var defaults: ({
     apps: [], edge: "bottom", align: "center", stretch: false,
     autohide: false, reserve: true, style: "theme", size: 44,
-    opacity: 90, radius: 16, monitor: "", attention: "pulse"
+    opacity: 90, radius: 16, monitor: "", attention: "pulse",
+    hideEffect: "slide", hideSpeed: 180, showDelay: 0, hideDelay: 450,
+    revealStrip: 3, edgeHint: true, outline: false,
+    customBg: "#141414", customFg: "#e0e0e0", accentColor: "#ff6a1f"
   })
+
+  // Color modes: follow the Omarchy theme, the theme with your own accent,
+  // plain greys, or the theme with every app tinted by its category.
+  readonly property var styles: ["theme", "custom", "monochrome", "category"]
+  // Swatches for the Custom colors: dark backgrounds, light text, accents.
+  readonly property var swatches: [
+    "#141414", "#1d1510", "#1a1b26", "#282a36", "#2e3440", "#2d353b", "#1f1f28", "#3b2a1f",
+    "#e0e0e0", "#eadbc8", "#ffffff", "#c0caf5", "#d8dee9", "#dcd7ba", "#f8f8f2", "#e0def4",
+    "#d4a35a", "#c8925a", "#7aa2f7", "#cba6f7", "#a7c080", "#88c0d0", "#fabd2f", "#ff6a1f"
+  ]
+
+  function validHex(v, fallback) {
+    const t = String(v === undefined || v === null ? "" : v).trim();
+    return /^#[0-9a-fA-F]{6}$/.test(t) ? t.toLowerCase() : fallback;
+  }
+
+  // Stable hue (0..1) for a category name.
+  function hueOf(name) {
+    const t = String(name || "");
+    let h = 0;
+    for (let k = 0; k < t.length; k++) h = (h * 31 + t.charCodeAt(k)) % 360;
+    return h / 360;
+  }
+
+  // Auto-hide effects, in the order the settings show them.
+  readonly property var hideEffects: ["slide", "fade", "glide", "zoom", "fold", "bounce", "pop", "wave"]
+
+  // Allowed range for every number a dock keeps, used to clean hand-edited
+  // config files and resets.
+  readonly property var ranges: ({
+    size: [1, 64], opacity: [1, 100], radius: [1, 64],
+    hideSpeed: [60, 800], showDelay: [0, 1000], hideDelay: [0, 2000], revealStrip: [1, 12]
+  })
+
+  function cleanDock(x) {
+    const d = Object.assign({}, defaults, x);
+    for (const k in ranges) {
+      const v = Number(d[k]);
+      d[k] = isFinite(v) ? Math.max(ranges[k][0], Math.min(ranges[k][1], Math.round(v))) : defaults[k];
+    }
+    if (hideEffects.indexOf(d.hideEffect) < 0) d.hideEffect = defaults.hideEffect;
+    if (["bottom", "top", "left", "right"].indexOf(d.edge) < 0) d.edge = defaults.edge;
+    if (["start", "center", "end"].indexOf(d.align) < 0) d.align = defaults.align;
+    if (["off", "dot", "pulse"].indexOf(d.attention) < 0) d.attention = defaults.attention;
+    if (d.style === "mono") d.style = "monochrome";
+    if (styles.indexOf(d.style) < 0) d.style = defaults.style;
+    for (const c of ["customBg", "customFg", "accentColor"]) d[c] = validHex(d[c], defaults[c]);
+    if (!Array.isArray(d.apps)) d.apps = [];
+    for (const b of ["stretch", "autohide", "reserve", "edgeHint", "outline"]) d[b] = d[b] === true;
+    d.monitor = typeof d.monitor === "string" ? d.monitor : "";
+    return d;
+  }
   // `hot` is the attention color. Monochrome keeps a fixed soft red, because a grey
   // pulse would be invisible.
   readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e" })
@@ -48,7 +103,19 @@ Scope {
   function barInfoFor(mon) { return barInfos[mon] || ""; }
   function marginOf(edge) { const v = margins[edge]; return v === undefined ? 6 : v; }
 
-  function palette(style) { return style === "theme" ? theme : mono; }
+  // Colors for a dock (or a bare style name). Custom uses your own
+  // background, text and accent; the attention color stays the theme's.
+  function palette(d) {
+    const style = typeof d === "string" ? d : (d ? d.style : "theme");
+    if (style === "monochrome") return mono;
+    if (style === "custom") return {
+      bg: validHex(d && d.customBg, defaults.customBg),
+      fg: validHex(d && d.customFg, defaults.customFg),
+      ac: validHex(d && d.accentColor, defaults.accentColor),
+      hot: theme.hot
+    };
+    return theme;
+  }
 
   // ---- persistence ----
   function save() {
@@ -236,6 +303,17 @@ Scope {
     warn("No room for another dock. Shrink icons or remove some apps first.");
   }
 
+  // Back to the defaults for everything but what the dock is: its apps, edge,
+  // position and monitor stay.
+  function resetDock(i) {
+    const d = docks[i];
+    if (!d) return;
+    const n = docks.slice();
+    n[i] = cleanDock({ apps: d.apps, edge: d.edge, align: d.align, monitor: d.monitor, reserve: d.reserve });
+    if (!layoutOk(n)) { warn("The default icon size does not fit here. Remove some icons first."); return; }
+    commit(n);
+  }
+
   function removeDock(i) {
     if (docks.length > 1) commit(docks.filter((d, j) => j !== i));
   }
@@ -250,7 +328,7 @@ Scope {
         const j = JSON.parse(text());
         const d = j.docks;
         if (d && d.length)
-          root.docks = d.slice(0, root.maxDocks).map(x => Object.assign({}, root.defaults, x));
+          root.docks = d.slice(0, root.maxDocks).map(x => root.cleanDock(x));
         if (j.margins) {
           const m = Object.assign({}, root.defaultMargins);
           for (const k of ["top", "bottom", "left", "right"]) {
@@ -312,7 +390,8 @@ Scope {
   Process {
     id: barProbe
     command: ["sh", "-c",
-      'mkdir -p "$1" && hyprctl -j layers > "$1/layers.json" 2>/dev/null || true',
+      'umask 077; mkdir -p "$1" && chmod 700 "$1" && rm -f "$1/layers.json" && ' +
+      'hyprctl -j layers > "$1/layers.json" 2>/dev/null || true',
       "sh", root.cacheDir]
     running: false
     onExited: barLayers.reload()
@@ -398,7 +477,10 @@ Scope {
   Process {
     id: clientsProbe
     command: ["sh", "-c",
-      'mkdir -p "$1" && hyprctl -j clients > "$1/clients.json" 2>/dev/null || true',
+      // The clients list holds window titles, so keep it private: owner-only dir and
+      // file, and drop any older copy first (> keeps the mode of an existing file).
+      'umask 077; mkdir -p "$1" && chmod 700 "$1" && rm -f "$1/clients.json" && ' +
+      'hyprctl -j clients > "$1/clients.json" 2>/dev/null || true',
       "sh", root.cacheDir]
     running: false
     onExited: {

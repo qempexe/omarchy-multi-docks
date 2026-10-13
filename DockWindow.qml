@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
+import "Effects.js" as Fx
 
 PanelWindow {
   id: win
@@ -11,8 +12,20 @@ PanelWindow {
   property int idx: 0
 
   readonly property var cfg: svc.docks[idx] || svc.defaults
-  readonly property var pal: svc.palette(cfg.style)
+  readonly property var pal: svc.palette(cfg)
+
+  // By category: each app gets a steady hue from its first desktop category,
+  // used for its running dot and hover. Other modes use the accent.
+  function toneFor(e) {
+    if (cfg.style !== "category") return pal.ac;
+    const cats = (e && e.categories) ? e.categories : [];
+    const main = cats.filter(c => ["GTK", "Qt", "KDE", "GNOME", "Application"].indexOf(c) < 0)[0] || (e ? e.id : "");
+    return Qt.hsla(svc.hueOf(main), 0.55, 0.68, 1);
+  }
   readonly property bool hz: cfg.edge === "top" || cfg.edge === "bottom"
+  // Window outline: the edge of the dock and its popups is a plain neutral
+  // line, or the accent color when the outline setting is on.
+  function edgeColor(base) { return cfg.outline ? Qt.alpha(pal.ac, 0.8) : Qt.alpha(pal.fg, base) }
   readonly property int pad: 8
   readonly property int cell: cfg.size + 12
   readonly property int step: cell + 6
@@ -64,14 +77,45 @@ PanelWindow {
   property bool addOpen: false
   property bool setOpen: false
   property bool lingering: false
+  // Pointer is on the dock or its reveal strip (after the optional show delay).
+  property bool hoverOpen: false
   readonly property bool popOpen: menuSlot !== null || addOpen || setOpen || previewPop.visible
-  readonly property bool open: !cfg.autohide || barHover.hovered || popOpen || lingering
+  readonly property bool open: !cfg.autohide || hoverOpen || popOpen || lingering
+
+  // ---- auto-hide motion ----
+  // hideT: 0 = shown, 1 = hidden. It is animated by hand (not a Behavior) so
+  // showing and hiding can use different easings.
+  property real hideT: 0
+  readonly property string effect: cfg.hideEffect || "slide"
+  readonly property int strip: Math.max(1, Math.min(thick, cfg.revealStrip || 3))
+  readonly property var fx: Fx.state(effect, hideT, winThick - strip)
+  readonly property int speed: cfg.hideSpeed || 180
+  // Wave: delay between one icon and the next.
+  readonly property int waveStep: Math.max(12, Math.min(45, Math.round(speed / 4)))
+
+  NumberAnimation {
+    id: hideAnim
+    target: win
+    property: "hideT"
+  }
+
+  function animateHide() {
+    hideAnim.stop();
+    hideAnim.to = open ? 0 : 1;
+    const springy = Fx.springy(effect);
+    hideAnim.easing.type = open
+      ? (springy ? Easing.OutBack : Easing.OutCubic)
+      : (springy ? Easing.InBack : Easing.InCubic);
+    hideAnim.easing.overshoot = effect === "pop" ? 2.2 : 1.7;
+    hideAnim.duration = speed;
+    hideAnim.start();
+  }
 
   // Tell the service whether we are on screen so it can hold or release the
   // reserved space (auto-hide docks only reserve while visible).
-  onOpenChanged: svc.setShown(idx, open)
+  onOpenChanged: { svc.setShown(idx, open); animateHide(); }
   onCfgChanged: svc.setShown(idx, open)
-  Component.onCompleted: svc.setShown(idx, open)
+  Component.onCompleted: { hideT = open ? 0 : 1; svc.setShown(idx, open); }
   Component.onDestruction: svc.setShown(idx, false)
 
   anchors {
@@ -93,11 +137,18 @@ PanelWindow {
   exclusionMode: ExclusionMode.Ignore
   exclusiveZone: 0
   color: "transparent"
-  mask: Region { item: bar }
+  // Only the dock catches the mouse. With auto-hide, a band on the very edge
+  // does too: the reveal strip while hidden, and while shown everything from
+  // the edge up to the dock, so moving from the strip onto the dock never
+  // leaves the window (and never closes it again under the pointer).
+  mask: Region {
+    item: barHit
+    Region { item: edgeHit }
+  }
 
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
-  WlrLayershell.keyboardFocus: addOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+  WlrLayershell.keyboardFocus: (addOpen || setOpen) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
   function windowsOf(e) {
     if (!e) return [];
@@ -153,7 +204,8 @@ PanelWindow {
 
   function closePopups() { menuSlot = null; addOpen = false; setOpen = false; previewSlot = null; }
 
-  Timer { id: linger; interval: 450; onTriggered: win.lingering = false }
+  Timer { id: linger; interval: win.cfg.hideDelay; onTriggered: win.lingering = false }
+  Timer { id: showDelay; interval: win.cfg.showDelay; onTriggered: win.hoverOpen = true }
   Timer {
     id: hoverDelay
     interval: 250
@@ -174,35 +226,103 @@ PanelWindow {
     onCleared: { win.menuSlot = null; win.addOpen = false; win.setOpen = false; }
   }
 
-  Rectangle {
-    id: bar
-    readonly property real hidden: win.open ? 0 : win.winThick - 3
+  Item {
+    id: stage
+    anchors.fill: parent
+
+    // Rest geometry of the dock (fully shown).
     readonly property real barAlong: win.cfg.stretch ? win.slotW : Math.min(win.along, win.slotW)
+    readonly property real barW: win.hz ? barAlong : win.thick
+    readonly property real barH: win.hz ? win.thick : barAlong
     function placeAlong(total) {
       return win.cfg.align === "start" ? 0 : win.cfg.align === "end" ? total - barAlong : (total - barAlong) / 2;
     }
-    width: win.hz ? barAlong : win.thick
-    height: win.hz ? win.thick : barAlong
-    x: win.hz ? placeAlong(parent.width) : (win.cfg.edge === "left" ? win.margin - hidden : parent.width - width - win.margin + hidden)
-    y: win.hz ? (win.cfg.edge === "top" ? win.margin - hidden : parent.height - height - win.margin + hidden) : placeAlong(parent.height)
+    readonly property real restX: win.hz ? placeAlong(width) : (win.cfg.edge === "left" ? win.margin : width - barW - win.margin)
+    readonly property real restY: win.hz ? (win.cfg.edge === "top" ? win.margin : height - barH - win.margin) : placeAlong(height)
+    // +1 when "toward the edge" is +x / +y, -1 otherwise.
+    readonly property int outward: (win.cfg.edge === "bottom" || win.cfg.edge === "right") ? 1 : -1
+
+    // Hover anywhere on the input region (dock or reveal strip).
+    HoverHandler {
+      id: stageHover
+      onHoveredChanged: {
+        if (hovered) {
+          linger.stop();
+          if (!win.open && win.cfg.autohide && win.cfg.showDelay > 0) showDelay.restart();
+          else win.hoverOpen = true;
+        } else {
+          showDelay.stop();
+          if (win.hoverOpen) { win.lingering = true; linger.restart(); }
+          win.hoverOpen = false;
+        }
+      }
+    }
+
+    // Input region pieces (see `mask`).
+    Item {
+      id: barHit
+      x: stage.restX; y: stage.restY
+      width: win.open ? stage.barW : 0
+      height: win.open ? stage.barH : 0
+    }
+    Item {
+      id: edgeHit
+      readonly property real band: win.cfg.autohide ? (win.open ? win.margin + win.strip : win.strip) : 0
+      x: win.hz ? stage.restX : (win.cfg.edge === "left" ? 0 : stage.width - band)
+      y: win.hz ? (win.cfg.edge === "top" ? 0 : stage.height - band) : stage.restY
+      width: win.hz ? stage.barW : band
+      height: win.hz ? band : stage.barH
+    }
+
+    // Thin pill on the screen edge while an auto-hidden dock is away, so you
+    // can see where it is. It turns the attention color when an app asks.
+    Rectangle {
+      id: edgeHint
+      visible: win.cfg.autohide && win.cfg.edgeHint && opacity > 0.01
+      readonly property real len: Math.max(28, Math.min(stage.barAlong * 0.35, 160))
+      width: win.hz ? len : 3
+      height: win.hz ? 3 : len
+      radius: 1.5
+      x: win.hz ? stage.restX + (stage.barW - width) / 2 : (win.cfg.edge === "left" ? 1 : stage.width - width - 1)
+      y: win.hz ? (win.cfg.edge === "top" ? 1 : stage.height - height - 1) : stage.restY + (stage.barH - height) / 2
+      color: win.anyUrgent ? win.pal.hot : win.pal.fg
+      opacity: Math.max(0, Math.min(1, win.hideT)) * (win.anyUrgent ? hintPulse : 0.5)
+      property real hintPulse: 1
+      SequentialAnimation on hintPulse {
+        running: edgeHint.visible && win.anyUrgent && win.cfg.attention === "pulse"
+        loops: Animation.Infinite
+        NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 1; duration: 900; easing.type: Easing.InOutSine }
+      }
+    }
+
+  Rectangle {
+    id: bar
+    width: stage.barW
+    height: stage.barH
+    x: stage.restX + (win.hz ? 0 : stage.outward * win.fx.off)
+    y: stage.restY + (win.hz ? stage.outward * win.fx.off : 0)
+    opacity: Math.max(0, Math.min(1, win.fx.opacity))
+    visible: opacity > 0.005
+    transform: Scale {
+      // Grow from / shrink onto the edge (or the center for "pop").
+      origin.x: win.fx.center || win.hz ? bar.width / 2 : (win.cfg.edge === "left" ? 0 : bar.width)
+      origin.y: win.fx.center || !win.hz ? bar.height / 2 : (win.cfg.edge === "top" ? 0 : bar.height)
+      xScale: win.fx.scale * (win.hz ? 1 : win.fx.fold)
+      yScale: win.fx.scale * (win.hz ? win.fx.fold : 1)
+    }
     radius: win.cfg.radius
-    color: Qt.alpha(win.pal.bg, win.cfg.opacity / 100)
+    color: Qt.alpha(win.pal.bg, win.cfg.opacity / 100 * Math.max(0, Math.min(1, win.fx.bg)))
     border.width: win.anyUrgent ? 2 : 1
-    border.color: win.anyUrgent ? Qt.alpha(win.pal.hot, barPulse) : Qt.alpha(win.pal.fg, 0.14)
+    border.color: win.anyUrgent ? Qt.alpha(win.pal.hot, barPulse * Math.max(0, Math.min(1, win.fx.bg)))
+      : (win.cfg.outline ? Qt.alpha(win.pal.ac, 0.8 * Math.max(0, Math.min(1, win.fx.bg)))
+                         : Qt.alpha(win.pal.fg, 0.14 * Math.max(0, Math.min(1, win.fx.bg))))
     property real barPulse: 0.9
     SequentialAnimation on barPulse {
       running: win.anyUrgent && win.cfg.attention === "pulse"
       loops: Animation.Infinite
       NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
       NumberAnimation { to: 0.9; duration: 900; easing.type: Easing.InOutSine }
-    }
-
-    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-
-    HoverHandler {
-      id: barHover
-      onHoveredChanged: if (!hovered) { win.lingering = true; linger.restart(); }
     }
 
     MouseArea {
@@ -234,6 +354,7 @@ PanelWindow {
           // Last icon name that resolved. Kept so a rescan, a theme change or a
           // momentarily missing entry does not blank the icon.
           property string iconName: ""
+          property int iconTick: 0
           function refreshIcon() {
             const n = (entry && entry.icon) ? entry.icon : "";
             if (n !== "") { iconName = n; return; }
@@ -241,8 +362,37 @@ PanelWindow {
           }
           onEntryChanged: refreshIcon()
           onWinsChanged: refreshIcon()
-          Component.onCompleted: refreshIcon()
+
+          // Resolve to a path that actually exists in the current icon theme.
+          // Unresolvable names would otherwise render Quickshell's magenta
+          // "missing texture" checkerboard.
+          readonly property string iconSrc: {
+            slot.iconTick;
+            const cands = [];
+            if (iconName !== "") { cands.push(iconName); cands.push(iconName.toLowerCase()); }
+            if (entry) {
+              if (entry.id) { cands.push(entry.id); cands.push(entry.id.toLowerCase()); }
+              if (entry.startupClass) cands.push(entry.startupClass.toLowerCase());
+            }
+            if (wins.length > 0 && wins[0].appId) { cands.push(wins[0].appId); cands.push(wins[0].appId.toLowerCase()); }
+            cands.push("application-x-executable", "application-default-icon", "applications-other");
+            for (const c of cands) {
+              if (!c) continue;
+              if (c.startsWith("/")) return "file://" + c;
+              const r = Quickshell.iconPath(c, true);
+              if (r) return r;
+            }
+            return "";
+          }
+          // Icon theme can change after launch (theme switch), so re-check
+          // every few seconds while nothing resolves.
+          Timer {
+            interval: 3000; repeat: true
+            running: slot.iconSrc === ""
+            onTriggered: slot.iconTick++
+          }
           readonly property var wins: win.windowsOf(entry)
+          readonly property color tone: win.toneFor(entry)
           readonly property bool attention: win.cfg.attention !== "off" && wins.some(t => win.isUrgent(t))
           property bool dragging: false
           property real off: 0
@@ -254,10 +404,34 @@ PanelWindow {
             return 0;
           }
 
+          // Wave: each icon pops on its own, one after another.
+          property real pt: 0
+          readonly property real waveT: win.effect === "wave" ? Math.max(0, Math.min(1, pt)) : 0
+          Connections {
+            target: win
+            function onOpenChanged() { waveAnim.run(slot.index, win.cfg.apps.length + 1); }
+          }
+          Component.onCompleted: { pt = win.open ? 0 : 1; refreshIcon(); }
+          SequentialAnimation {
+            id: waveAnim
+            function run(i, n) {
+              stop();
+              if (win.effect !== "wave") { slot.pt = win.open ? 0 : 1; return; }
+              pause.duration = (win.open ? i : n - 1 - i) * win.waveStep;
+              grow.to = win.open ? 0 : 1;
+              grow.duration = win.speed;
+              grow.easing.type = win.open ? Easing.OutBack : Easing.InCubic;
+              start();
+            }
+            PauseAnimation { id: pause }
+            NumberAnimation { id: grow; target: slot; property: "pt" }
+          }
+
           width: win.cell
           height: win.cell
           z: dragging ? 10 : 0
-          opacity: dragging ? 0.85 : 1
+          opacity: (dragging ? 0.85 : 1) * (1 - waveT)
+          scale: 1 - 0.6 * waveT
 
           transform: Translate {
             x: win.hz ? slot.shift : 0
@@ -269,13 +443,32 @@ PanelWindow {
           Rectangle {
             anchors.fill: parent
             radius: 12
-            color: Qt.alpha(win.pal.fg, ma.containsMouse || slot.dragging ? 0.14 : 0)
+            color: win.cfg.style === "category"
+              ? Qt.alpha(slot.tone, ma.containsMouse || slot.dragging ? 0.22 : 0)
+              : Qt.alpha(win.pal.fg, ma.containsMouse || slot.dragging ? 0.14 : 0)
           }
 
           IconImage {
             anchors.centerIn: parent
             implicitSize: win.cfg.size
-            source: Quickshell.iconPath(slot.iconName, "application-x-executable")
+            visible: slot.iconSrc !== ""
+            source: slot.iconSrc
+          }
+
+          // Plain letter tile when no icon can be found at all.
+          Rectangle {
+            anchors.centerIn: parent
+            width: win.cfg.size; height: win.cfg.size
+            radius: width * 0.25
+            visible: slot.iconSrc === ""
+            color: Qt.alpha(win.pal.fg, 0.15)
+            Text {
+              anchors.centerIn: parent
+              text: (slot.modelData || "?").charAt(0).toUpperCase()
+              color: win.pal.fg
+              font.pixelSize: parent.height * 0.5
+              font.bold: true
+            }
           }
 
           // Soft glow around the icon while an app wants attention.
@@ -299,7 +492,7 @@ PanelWindow {
           Rectangle {
             visible: slot.wins.length > 0
             width: slot.attention ? 8 : 5; height: width; radius: width / 2
-            color: slot.attention ? win.pal.hot : win.pal.ac
+            color: slot.attention ? win.pal.hot : slot.tone
             x: win.hz ? (parent.width - width) / 2 : (win.cfg.edge === "left" ? 1 : parent.width - width - 1)
             y: win.hz ? (win.cfg.edge === "top" ? 1 : parent.height - height - 1) : (parent.height - height) / 2
           }
@@ -366,6 +559,28 @@ PanelWindow {
         id: addBtn
         width: win.cell
         height: win.cell
+        property real pt: 0
+        readonly property real waveT: win.effect === "wave" ? Math.max(0, Math.min(1, pt)) : 0
+        opacity: 1 - waveT
+        scale: 1 - 0.6 * waveT
+        Component.onCompleted: pt = win.open ? 0 : 1
+        Connections {
+          target: win
+          function onOpenChanged() {
+            addWave.stop();
+            if (win.effect !== "wave") { addBtn.pt = win.open ? 0 : 1; return; }
+            addPause.duration = win.open ? win.cfg.apps.length * win.waveStep : 0;
+            addGrow.to = win.open ? 0 : 1;
+            addGrow.duration = win.speed;
+            addGrow.easing.type = win.open ? Easing.OutBack : Easing.InCubic;
+            addWave.start();
+          }
+        }
+        SequentialAnimation {
+          id: addWave
+          PauseAnimation { id: addPause }
+          NumberAnimation { id: addGrow; target: addBtn; property: "pt" }
+        }
 
         Rectangle {
           anchors.fill: parent
@@ -392,6 +607,7 @@ PanelWindow {
         }
       }
     }
+  }
   }
 
   PopupWindow {
@@ -429,7 +645,7 @@ PanelWindow {
       visible: previewPop.visible && previewPop.shownWins.length > 0
       color: win.pal.bg
       border.width: 1
-      border.color: Qt.alpha(win.pal.fg, 0.18)
+      border.color: win.edgeColor(0.18)
 
       Row {
         id: previewRow
@@ -506,7 +722,7 @@ PanelWindow {
       radius: 12
       color: win.pal.bg
       border.width: 1
-      border.color: Qt.alpha(win.pal.fg, 0.18)
+      border.color: win.edgeColor(0.18)
 
       Column {
         id: menuCol
@@ -557,14 +773,14 @@ PanelWindow {
     implicitWidth: 300
     implicitHeight: 380
     color: "transparent"
-    onVisibleChanged: if (visible) { search.text = ""; search.forceActiveFocus(); }
+    onVisibleChanged: if (visible) { search.clear(); search.forceActiveFocus(); }
 
     Rectangle {
       anchors.fill: parent
       radius: 14
       color: win.pal.bg
       border.width: 1
-      border.color: Qt.alpha(win.pal.fg, 0.18)
+      border.color: win.edgeColor(0.18)
 
       Rectangle {
         id: searchBox
@@ -573,13 +789,13 @@ PanelWindow {
         radius: 8
         color: Qt.alpha(win.pal.fg, 0.08)
 
-        TextInput {
+        // Clipboard-free field: see SearchField.qml for why this is not a TextInput.
+        SearchField {
           id: search
           anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
-          verticalAlignment: TextInput.AlignVCenter
           color: win.pal.fg
-          font.pixelSize: 14
-          clip: true
+          selectionColor: Qt.alpha(win.pal.fg, 0.3)
+          fontPixelSize: 14
         }
         Text {
           textFormat: Text.PlainText
@@ -637,164 +853,20 @@ PanelWindow {
     anchor.edges: win.popEdge
     anchor.gravity: win.popEdge
     anchor.adjustment: PopupAdjustment.Slide | PopupAdjustment.Resize
-    implicitWidth: setCol.implicitWidth + 28
-    implicitHeight: setCol.implicitHeight + 28
+    // Never taller than the free part of the screen; the rows scroll instead.
+    readonly property int room: Math.max(320, (win.screen ? win.screen.height : 1080)
+      - (win.hz ? win.winThick + win.barOffset : 0) - 40)
+    implicitWidth: panel.implicitWidth
+    implicitHeight: Math.min(room, panel.implicitHeight)
     color: "transparent"
 
-    Rectangle {
+    SettingsPanel {
+      id: panel
       anchors.fill: parent
-      radius: 14
-      color: win.pal.bg
-      border.width: 1
-      border.color: Qt.alpha(win.pal.fg, 0.18)
-
-      Column {
-        id: setCol
-        anchors.centerIn: parent
-        spacing: 10
-
-        Grid {
-          columns: 2
-          rowSpacing: 8
-          columnSpacing: 14
-          verticalItemAlignment: Grid.AlignVCenter
-
-          Text { textFormat: Text.PlainText; text: "Monitor"; color: win.pal.fg; font.pixelSize: 13; visible: win.screenNames.length > 1 || win.cfg.monitor !== "" }
-          Chips {
-            visible: win.screenNames.length > 1 || win.cfg.monitor !== ""
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["primary"].concat(win.screenNames)
-            value: win.cfg.monitor === "" ? "primary" : win.cfg.monitor
-            onPicked: v => win.svc.patch(win.idx, "monitor", v === "primary" ? "" : v)
-          }
-          Text { textFormat: Text.PlainText; text: "Edge"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["bottom", "top", "left", "right"]
-            value: win.cfg.edge
-            onPicked: v => win.svc.patch(win.idx, "edge", v)
-          }
-          Text { textFormat: Text.PlainText; text: "Position"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["start", "center", "end"]
-            value: win.cfg.align
-            onPicked: v => win.svc.patch(win.idx, "align", v)
-          }
-          Text { textFormat: Text.PlainText; text: "Full length"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["on", "off"]
-            value: win.cfg.stretch ? "on" : "off"
-            onPicked: v => win.svc.patch(win.idx, "stretch", v === "on")
-          }
-          Text { textFormat: Text.PlainText; text: "Auto-hide"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["on", "off"]
-            value: win.cfg.autohide ? "on" : "off"
-            onPicked: v => win.svc.patch(win.idx, "autohide", v === "on")
-          }
-          Text { textFormat: Text.PlainText; text: "Reserve space"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["on", "off"]
-            value: win.cfg.reserve ? "on" : "off"
-            onPicked: v => win.svc.patch(win.idx, "reserve", v === "on")
-          }
-          Text { textFormat: Text.PlainText; text: "Look applies to"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: win.scopeLabels
-            value: win.scopeLabels[win.scopeIdx]
-            onPicked: v => win.scopeIdx = win.scopeLabels.indexOf(v)
-          }
-          Text { textFormat: Text.PlainText; text: "Colors"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["theme", "monochrome"]
-            value: win.cfg.style
-            onPicked: v => win.svc.patchScope(win.idx, "style", v, win.scope)
-          }
-          Text { textFormat: Text.PlainText; text: "Attention"; color: win.pal.fg; font.pixelSize: 13 }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["off", "dot", "pulse"]
-            value: win.cfg.attention
-            onPicked: v => win.svc.patchScope(win.idx, "attention", v, win.scope)
-          }
-          Text { textFormat: Text.PlainText; text: "Icon size"; color: win.pal.fg; font.pixelSize: 13 }
-          Slider {
-            fg: win.pal.fg; ac: win.pal.ac
-            from: 1; to: 64
-            value: win.cfg.size
-            onPicked: v => win.svc.patch(win.idx, "size", v)
-          }
-          Text { textFormat: Text.PlainText; text: "Opacity"; color: win.pal.fg; font.pixelSize: 13 }
-          Slider {
-            fg: win.pal.fg; ac: win.pal.ac
-            from: 1; to: 100
-            value: win.cfg.opacity
-            suffix: "%"
-            onPicked: v => win.svc.patchScope(win.idx, "opacity", v, win.scope)
-          }
-          Text { textFormat: Text.PlainText; text: "Corner radius"; color: win.pal.fg; font.pixelSize: 13 }
-          Slider {
-            fg: win.pal.fg; ac: win.pal.ac
-            from: 1; to: 64
-            value: win.cfg.radius
-            onPicked: v => win.svc.patchScope(win.idx, "radius", v, win.scope)
-          }
-          Text { textFormat: Text.PlainText; text: "Margin (" + win.cfg.edge + ")"; color: win.pal.fg; font.pixelSize: 13 }
-          Slider {
-            fg: win.pal.fg; ac: win.pal.ac
-            from: 0; to: 64
-            value: win.margin
-            suffix: "px"
-            onPicked: v => win.svc.setMargin(win.cfg.edge, v)
-          }
-        }
-
-        Text {
-          textFormat: Text.PlainText
-          text: "Icons: " + win.cfg.apps.length + " / " + win.maxApps
-          color: Qt.alpha(win.pal.fg, 0.7)
-          font.pixelSize: 12
-        }
-        Text {
-          textFormat: Text.PlainText
-          width: 260
-          wrapMode: Text.WordWrap
-          text: "Margin is shared by every dock on the " + win.cfg.edge + " edge. Omarchy bar: "
-            + (win.svc.barInfoFor(win.mon) !== "" ? win.svc.barInfoFor(win.mon) : "not detected")
-            + (win.monitorMissing ? ". Monitor " + win.cfg.monitor + " is not connected, so this dock is on the primary screen." : "")
-          color: Qt.alpha(win.pal.fg, 0.7)
-          font.pixelSize: 12
-        }
-        Text {
-          textFormat: Text.PlainText
-          visible: win.svc.notice !== ""
-          width: 260
-          wrapMode: Text.WordWrap
-          text: win.svc.notice
-          color: "#ff8a80"
-          font.pixelSize: 12
-        }
-
-        Row {
-          spacing: 8
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["Add dock (" + win.svc.docks.length + "/" + win.svc.maxDocks + ")"]
-            onPicked: { win.setOpen = false; win.svc.addDock(win.idx); }
-          }
-          Chips {
-            fg: win.pal.fg; ac: win.pal.ac
-            options: ["Remove this dock"]
-            onPicked: { win.setOpen = false; win.svc.removeDock(win.idx); }
-          }
-        }
-      }
+      dock: win
+      svc: win.svc
+      shown: setPop.visible
+      onCloseRequested: win.setOpen = false
     }
   }
 }
