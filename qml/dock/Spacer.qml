@@ -2,9 +2,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 
-// Invisible 1x1 window that carries the exclusive zone for one edge of one
-// monitor. The compositor only honours a zone from a window anchored to a
-// single edge, so the docks themselves cannot do it.
+// invisible 1x1 window carrying the exclusive zone for one edge of one monitor.
+// the compositor only honours zones from single-edge windows, so the docks can't do it
 PanelWindow {
   id: sp
 

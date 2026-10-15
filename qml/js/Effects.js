@@ -1,15 +1,9 @@
 .pragma library
 
-// Auto-hide effects, shared by the docks and by the little previews in the
-// settings. `t` runs from 0 (dock fully shown) to 1 (dock fully hidden) and
-// may overshoot a little with the springy easings. `dist` is how far a sliding
-// dock travels toward the screen edge.
+// auto-hide effects, used by the docks and the setting tiles.
+// t: 0 shown .. 1 hidden (springy easings overshoot a bit). dist: how far a sliding dock travels
 //
-//   off      distance moved toward the edge
-//   opacity  of the whole dock
-//   scale    uniform scale (origin: the edge, or the center for "pop")
-//   fold     scale across the dock's thickness, squashed onto the edge
-//   bg       how much of the background is drawn (wave fades it on its own)
+// returns off, opacity, scale, fold (squash onto the edge), bg (wave fades it separately)
 function state(effect, t, dist) {
   const c = Math.max(0, Math.min(1, t));
   const s = { off: 0, opacity: 1, scale: 1, fold: 1, bg: 1, center: false };
@@ -43,10 +37,10 @@ function state(effect, t, dist) {
   return s;
 }
 
-// Effects whose easing springs past the end point.
+// easings that overshoot
 function springy(effect) { return effect === "bounce" || effect === "pop"; }
 
-// Friendly names for the settings.
+// names for the settings
 var labels = {
   slide: "Slide", fade: "Fade", glide: "Glide", zoom: "Zoom",
   fold: "Fold", bounce: "Bounce", pop: "Pop", wave: "Wave"

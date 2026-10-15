@@ -11,8 +11,7 @@ Scope {
   readonly property string home: Quickshell.env("HOME")
   readonly property string cfgDir: home + "/.config/omarchy-dock"
   readonly property string cfgPath: cfgDir + "/config.json"
-  // Omarchy 4 keeps the active theme under ~/.local/state; older releases used
-  // ~/.config. Try the new location first and fall back to the old one.
+  // omarchy 4 keeps the theme in ~/.local/state, older versions in ~/.config. try new first
   property bool legacyTheme: false
   readonly property string themeDir: home + (legacyTheme
     ? "/.config/omarchy/current" : "/.local/state/omarchy/current")
@@ -31,10 +30,9 @@ Scope {
     customBg: "#141414", customFg: "#e0e0e0", accentColor: "#ff6a1f"
   })
 
-  // Color modes: follow the Omarchy theme, the theme with your own accent,
-  // plain greys, or the theme with every app tinted by its category.
+  // color modes: theme, theme + your accent, greys, or theme with a tint per app category
   readonly property var styles: ["theme", "custom", "monochrome", "category"]
-  // Swatches for the Custom colors: dark backgrounds, light text, accents.
+  // custom color swatches: backgrounds, text, accents
   readonly property var swatches: [
     "#141414", "#1d1510", "#1a1b26", "#282a36", "#2e3440", "#2d353b", "#1f1f28", "#3b2a1f",
     "#e0e0e0", "#eadbc8", "#ffffff", "#c0caf5", "#d8dee9", "#dcd7ba", "#f8f8f2", "#e0def4",
@@ -46,7 +44,7 @@ Scope {
     return /^#[0-9a-fA-F]{6}$/.test(t) ? t.toLowerCase() : fallback;
   }
 
-  // Stable hue (0..1) for a category name.
+  // stable hue (0..1) per category name
   function hueOf(name) {
     const t = String(name || "");
     let h = 0;
@@ -54,11 +52,10 @@ Scope {
     return h / 360;
   }
 
-  // Auto-hide effects, in the order the settings show them.
+  // hide effects, in settings order
   readonly property var hideEffects: ["slide", "fade", "glide", "zoom", "fold", "bounce", "pop", "wave"]
 
-  // Allowed range for every number a dock keeps, used to clean hand-edited
-  // config files and resets.
+  // allowed range per number, used to clean hand edited configs and resets
   readonly property var ranges: ({
     size: [1, 64], opacity: [1, 100], radius: [1, 64],
     hideSpeed: [60, 800], showDelay: [0, 1000], hideDelay: [0, 2000], revealStrip: [1, 12]
@@ -78,25 +75,26 @@ Scope {
     if (styles.indexOf(d.style) < 0) d.style = defaults.style;
     for (const c of ["customBg", "customFg", "accentColor"]) d[c] = validHex(d[c], defaults[c]);
     if (!Array.isArray(d.apps)) d.apps = [];
+    // app ids only: plain strings, no control chars, no dupes
+    d.apps = d.apps.filter((a, i, all) => typeof a === "string" && a.length > 0 && a.length <= 255
+                                         && !/[\u0000-\u001f\u007f]/.test(a) && all.indexOf(a) === i).slice(0, 64);
     for (const b of ["stretch", "autohide", "reserve", "edgeHint", "outline"]) d[b] = d[b] === true;
-    d.monitor = typeof d.monitor === "string" ? d.monitor : "";
+    d.monitor = typeof d.monitor === "string" && d.monitor.length <= 64 ? d.monitor : "";
     return d;
   }
-  // `hot` is the attention color. Monochrome keeps a fixed soft red, because a grey
-  // pulse would be invisible.
+  // hot = attention color. mono keeps a soft red, a grey pulse would be invisible
   readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e" })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
 
   property var docks: [Object.assign({}, defaults)]
   property var theme: mono
 
-  // Gap between the screen edge (or the Omarchy bar) and the docks, one value
-  // per edge. Every dock on an edge shares it.
+  // gap between the edge (or the omarchy bar) and the docks, one per edge, shared
   property var margins: Object.assign({}, defaultMargins)
 
-  // ---- Omarchy bar detection (per monitor) ----
-  // barSizes[monitor][edge] = distance from that screen edge to the inner side
-  // of the bar, 0 = no bar. barInfos[monitor] = what was found, for display.
+  // omarchy bar detection, per monitor
+  // barSizes[mon][edge] = edge -> inner side of the bar (0 = no bar)
+  // barInfos[mon] = what we found, for the settings
   property var barSizes: ({})
   property var barInfos: ({})
 
@@ -104,8 +102,7 @@ Scope {
   function barInfoFor(mon) { return barInfos[mon] || ""; }
   function marginOf(edge) { const v = margins[edge]; return v === undefined ? 6 : v; }
 
-  // Colors for a dock (or a bare style name). Custom uses your own
-  // background, text and accent; the attention color stays the theme's.
+  // colors for a dock or a style name. custom = your own bg/text/accent, attention stays the theme's
   function palette(d) {
     const style = typeof d === "string" ? d : (d ? d.style : "theme");
     if (style === "monochrome") return mono;
@@ -118,10 +115,10 @@ Scope {
     return theme;
   }
 
-  // ---- persistence ----
+  // saving
   function save() {
     Quickshell.execDetached(["sh", "-c",
-      'mkdir -p "$1" && printf %s "$2" > "$3"', "sh",
+      'umask 077; mkdir -p "$1" && chmod 700 "$1" && printf %s "$2" > "$3.tmp" && mv -f "$3.tmp" "$3"', "sh",
       cfgDir, JSON.stringify({ docks: docks, margins: margins }, null, 2), cfgPath]);
   }
 
@@ -136,9 +133,7 @@ Scope {
   Timer { id: noticeTimer; interval: 4000; onTriggered: root.notice = "" }
   function warn(text) { notice = text; noticeTimer.restart(); }
 
-  // ---- monitors ----
-  // A dock whose monitor is empty, or not connected right now, lives on the
-  // primary screen (the shell's first screen).
+  // monitors. no monitor set, or not connected -> primary screen
   function screenByName(name) {
     const list = Quickshell.screens;
     for (let k = 0; k < list.length; k++) if (list[k].name === name) return list[k];
@@ -162,9 +157,7 @@ Scope {
 
   function dockThick(d) { return d.size + 28; }
 
-  // How far in from the screen edge the stuff on `edge` of monitor `mon`
-  // reaches: the Omarchy bar, plus (when docks sit there) their margin and
-  // thickness.
+  // how far in from the edge things reach on mon/edge: bar + docks (margin + thickness)
   function extent(list, mon, edge) {
     const bar = barOffset(mon, edge);
     const ds = list.filter(d => d.edge === edge && monOf(d) === mon);
@@ -202,9 +195,7 @@ Scope {
     return true;
   }
 
-  // ---- reserve space ----
-  // Whether each dock is currently on screen (index -> bool). Docks report
-  // this from DockWindow; it only matters for auto-hide docks.
+  // reserve space. index -> is that dock on screen right now (only matters with auto-hide)
   property var shown: ({})
 
   function setShown(i, v) {
@@ -214,17 +205,15 @@ Scope {
     shown = n;
   }
 
-  // A dock holds its space while it is visible. With auto-hide on, the space
-  // is given back as soon as the dock slides away and taken again when it
-  // reappears; the Reserve space setting itself never changes.
+  // a visible dock holds its space. with auto-hide it gives it back while hidden,
+  // the setting itself doesn't change
   function reserving(i) {
     const d = docks[i];
     return !!d && d.reserve && (!d.autohide || shown[i] === true);
   }
 
   function edgeZone(mon, edge) {
-    // The dock window is thickness + margin deep (see DockWindow), so the
-    // reserved band matches it exactly.
+    // window is thickness + margin deep (see DockWindow), so the band matches exactly
     let zone = 0;
     for (let i = 0; i < docks.length; i++) {
       const d = docks[i];
@@ -234,11 +223,11 @@ Scope {
     return zone;
   }
 
-  // ---- mutations ----
+  // changes
   function patch(i, key, value) {
     const n = docks.slice();
     if (key === "reserve") {
-      // Reserve is shared by every dock on the same edge of the same monitor.
+      // reserve is shared by every dock on the same edge of the same monitor
       const ref = n[i];
       for (let j = 0; j < n.length; j++) {
         if (sameGroup(n[j], ref)) n[j] = Object.assign({}, n[j], { reserve: value });
@@ -253,8 +242,7 @@ Scope {
     commit(n);
   }
 
-  // Look settings (colors, opacity, radius) for one dock, every dock on its
-  // edge, or all docks.
+  // look settings for one dock, its edge, or everything
   function patchScope(i, key, value, scope) {
     if (scope !== "edge" && scope !== "all") { patch(i, key, value); return; }
     const ref = docks[i];
@@ -289,7 +277,7 @@ Scope {
     patch(i, "apps", a);
   }
 
-  // The new dock goes on the same monitor as the dock whose settings are open.
+  // new dock goes on the monitor of the dock whose settings are open
   function addDock(from) {
     if (docks.length >= maxDocks) { warn("Maximum of " + maxDocks + " docks."); return; }
     const monitor = (from !== undefined && docks[from]) ? docks[from].monitor : "";
@@ -304,8 +292,7 @@ Scope {
     warn("No room for another dock. Shrink icons or remove some apps first.");
   }
 
-  // Back to the defaults for everything but what the dock is: its apps, edge,
-  // position and monitor stay.
+  // reset everything except what the dock is (apps, edge, position, monitor)
   function resetDock(i) {
     const d = docks[i];
     if (!d) return;
@@ -342,7 +329,7 @@ Scope {
     }
   }
 
-  // ---- theme colors ----
+  // theme colors
   function parseTheme(t) {
     const pick = k => {
       const m = t.match(new RegExp("^\\s*" + k + "\\s*=\\s*[\"']?(#[0-9a-fA-F]{6})", "m"));
@@ -384,10 +371,8 @@ Scope {
     onTriggered: themeFile.reload()
   }
 
-  // ---- Omarchy bar probing ----
-  // Shell out to hyprctl and drop the JSON in our cache dir, then read it
-  // back with a FileView. This avoids depending on any less-portable
-  // Quickshell stdout API.
+  // bar probing: hyprctl into our cache dir, read back with a FileView
+  // (avoids depending on quickshell's stdout api)
   Process {
     id: barProbe
     command: ["sh", "-c",
@@ -406,11 +391,9 @@ Scope {
     onLoaded: root.detectBar(text())
   }
 
-  // ---- attention (windows that ask for focus) ----
-  // Hyprland announces them with an `urgent>>ADDRESS` event and drops the mark
-  // when the window is focused or closed. We follow those events ourselves, so
-  // this does not depend on how much of Hyprland's window state Quickshell
-  // exposes. urgentMap: window address (hex, no 0x) -> app class, "" until known.
+  // attention. hyprland sends urgent>>ADDRESS and drops it on focus/close.
+  // we follow those events ourselves instead of relying on what quickshell exposes.
+  // urgentMap: address (hex, no 0x) -> app class ("" until known)
   property var urgentMap: ({})
   readonly property string clientsPath: cacheDir + "/clients.json"
   property bool clientsAgain: false
@@ -450,7 +433,7 @@ Scope {
     clientsProbe.running = true;
   }
 
-  // Fill in the class of each urgent window, and forget windows that are gone.
+  // fill in the class of each urgent window, forget the ones that are gone
   function resolveClients(json) {
     let list;
     try { list = JSON.parse(json); } catch (e) { return; }
@@ -478,8 +461,7 @@ Scope {
   Process {
     id: clientsProbe
     command: ["sh", "-c",
-      // The clients list holds window titles, so keep it private: owner-only dir and
-      // file, and drop any older copy first (> keeps the mode of an existing file).
+      // titles in here, so private: owner-only dir/file, old copy removed first (> keeps the old mode)
       'umask 077; mkdir -p "$1" && chmod 700 "$1" && rm -f "$1/clients.json" && ' +
       'hyprctl -j clients > "$1/clients.json" 2>/dev/null || true',
       "sh", root.cacheDir]
@@ -498,9 +480,8 @@ Scope {
     onLoaded: root.resolveClients(text())
   }
 
-  // `hyprctl -j layers` looks like
-  //   { "DP-1": { "levels": { "0": [ {x,y,w,h,namespace,...} ], "1": [], ... } } }
-  // so the layers sit one level deeper than a plain array per monitor.
+  // hyprctl -j layers: { "DP-1": { "levels": { "0": [ {x,y,w,h,namespace} ], ... } } }
+  // so one level deeper than a plain array per monitor
   function scanBar(mon, sw, sh) {
     let layers = [];
     if (Array.isArray(mon)) layers = mon;
@@ -529,8 +510,8 @@ Scope {
       (ns.indexOf("bar") >= 0 ? named : shaped).push(hit);
     }
 
-    // A layer whose name says "bar" wins; otherwise fall back to any thin
-    // strip hugging a screen edge (the shell's own bar may use a generic name).
+    // a layer with "bar" in its name wins, else any thin strip on an edge
+    // (the shell's bar might have a generic name)
     const picks = named.length > 0 ? named : shaped;
     const sizes = { top: 0, bottom: 0, left: 0, right: 0 };
     const info = [];
@@ -569,7 +550,7 @@ Scope {
     onTriggered: { if (!barProbe.running) barProbe.running = true; }
   }
 
-  // ---- one window per dock ----
+  // one window per dock
   Variants {
     model: Array.from({ length: root.docks.length }, (_, i) => i)
 
@@ -580,7 +561,7 @@ Scope {
     }
   }
 
-  // ---- reserve-space spacers: one per monitor and edge ----
+  // spacers for reserved space, one per monitor and edge
   Variants {
     model: Quickshell.screens
 

@@ -4,14 +4,9 @@ import Quickshell
 import Quickshell.Widgets
 import "../js/Effects.js" as Fx
 
-// Settings of one dock:
-//
-//   * Header card: which dock this is, Reset dock (asks twice), close, and a
-//     live preview of the dock with its real icons, colors and shape.
-//   * Four tabs: Place, Hide, Look, Docks (Alt+Left / Alt+Right to switch).
-//   * Every setting is a SettingRow with a one-line hint and a reset arrow once
-//     it differs from the default. Settings that do nothing right now are dimmed.
-//   * Footer: Esc closes, changes apply instantly.
+// settings for one dock: header (which dock, reset, close, live preview),
+// tabs place / hide / look / docks (alt+left/right), rows with hints + reset arrows,
+// dimmed when they do nothing right now, footer
 Item {
   id: root
 
@@ -29,7 +24,7 @@ Item {
   property bool confirmRemove: false
   onShownChanged: if (!shown) { confirmReset = false; confirmRemove = false; }
 
-  // ---- colors (from this dock's palette) ---------------------------------------------
+  // colors from this dock's palette
   function luma(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
   readonly property color ink: Qt.color(pal.fg)
   readonly property color accent: Qt.color(pal.ac)
@@ -38,7 +33,7 @@ Item {
   readonly property color inkOnFg: luma(accent) > 0.55 ? Qt.rgba(0.07, 0.07, 0.09, 1) : Qt.rgba(0.97, 0.97, 0.98, 1)
   function tint(a) { return Qt.rgba(ink.r, ink.g, ink.b, a) }
 
-  // ---- what each tab holds ---------------------------------------------------------
+  // what each tab holds
   readonly property var tabs: ["Place", "Hide", "Look", "Docks"]
   readonly property bool manyScreens: dock.screenNames.length > 1 || cfg.monitor !== ""
   readonly property string scopeHint: "Applies to " + (dock.scope === "dock" ? "this dock only"
@@ -109,7 +104,7 @@ Item {
     []
   ]
 
-  // What each color mode looks like, for the Colors tiles.
+  // scheme tile colors
   readonly property var schemes: ({
     theme: svc.palette("theme"),
     custom: svc.palette({ style: "custom", customBg: cfg.customBg, customFg: cfg.customFg, accentColor: cfg.accentColor }),
@@ -166,7 +161,7 @@ Item {
   implicitWidth: 440
   implicitHeight: mainCol.implicitHeight + 28
 
-  // Small text button used in the header and the Docks tab.
+  // small text button (header + docks tab)
   component TextButton: Rectangle {
     id: tb
     property string text: ""
@@ -210,7 +205,7 @@ Item {
       anchors.margins: 14
       spacing: 12
 
-      // ---- header: which dock + live preview ------------------------------------
+      // header + live preview
       Rectangle {
         Layout.fillWidth: true
         implicitHeight: headerCol.implicitHeight + 24
@@ -285,8 +280,7 @@ Item {
             }
           }
 
-          // live preview: the dock's own icons, colors, opacity and corners.
-          // With many icons it scrolls sideways: mouse wheel, drag, or the bar.
+          // live preview with the real icons/colors/corners, scrolls sideways when there are many
           Rectangle {
             id: strip
             Layout.fillWidth: true
@@ -370,7 +364,7 @@ Item {
                 }
               }
 
-              // soft fades where more icons are hidden
+              // fades where icons are hidden
               Rectangle {
                 visible: previewFlick.contentX > 1
                 anchors.left: parent.left
@@ -401,7 +395,7 @@ Item {
               }
             }
 
-            // scrollbar under the dock, only when it overflows
+            // scrollbar, only on overflow
             Item {
               id: track
               visible: strip.overflow
@@ -440,7 +434,7 @@ Item {
               }
             }
 
-            // mouse wheel scrolls sideways (either wheel direction)
+            // wheel scrolls sideways (any direction)
             MouseArea {
               anchors.fill: parent
               acceptedButtons: Qt.NoButton
@@ -454,7 +448,7 @@ Item {
         }
       }
 
-      // ---- tabs ---------------------------------------------------------------------
+      // tabs
       Item {
         Layout.fillWidth: true
         implicitHeight: 30
@@ -513,7 +507,7 @@ Item {
         }
       }
 
-      // ---- the active tab -------------------------------------------------------------
+      // active tab
       Flickable {
         id: flick
         Layout.fillWidth: true
@@ -592,7 +586,7 @@ Item {
               }
             }
 
-            // ---- Docks tab -------------------------------------------------------------
+            // docks tab
             ColumnLayout {
               visible: root.tab === 3
               Layout.fillWidth: true
@@ -692,7 +686,7 @@ Item {
               }
             }
 
-            // refused changes show up here, in every tab
+            // refused changes show up here, every tab
             Text {
               textFormat: Text.PlainText
               visible: root.svc.notice !== ""
@@ -708,7 +702,7 @@ Item {
         }
       }
 
-      // ---- footer -------------------------------------------------------------------
+      // footer
       RowLayout {
         Layout.fillWidth: true
         spacing: 6

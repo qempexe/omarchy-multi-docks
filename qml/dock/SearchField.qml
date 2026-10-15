@@ -1,17 +1,14 @@
 import QtQuick
 import Quickshell.Io
 
-// Single-line search field for the add-app popup.
+// search field for the add-app popup.
 //
-// Not a TextInput on purpose. QQuickTextInput connects to the clipboard in its
-// constructor and re-reads foreign clipboard data on every clipboard change (to
-// update canPaste), with no size or time limit and no way to turn it off. The
-// popup's contents stay instantiated while it is hidden, so a TextInput there
-// would keep doing that in the background for every dock. This field draws a
-// plain Text and handles keys itself, so no clipboard connection exists. Paste
-// only happens on an explicit Ctrl+V / Shift+Insert, through a fixed command
-// that reads at most `pasteMaxBytes` within 2 seconds.
-// Not supported (by design): IME composition, copy/cut, mouse selection.
+// not a TextInput on purpose: QQuickTextInput hooks the clipboard in its constructor
+// and re-reads it on every change (for canPaste), no limit, can't turn it off. the popup
+// stays alive while hidden, so every dock would keep doing that in the background.
+// this one is a Text + own key handling, so no clipboard connection at all.
+// paste only on explicit ctrl+v / shift+insert, via a fixed command, capped at
+// pasteMaxBytes and 2 seconds. no IME, copy/cut or mouse selection (by design)
 Item {
   id: field
 
@@ -34,7 +31,7 @@ Item {
     cursorPosition = Math.max(0, Math.min(text.length, cursorPosition));
   }
 
-  // Insert plain single-line text at `pos` (replaces everything after select-all).
+  // insert plain single-line text at pos (replaces everything after select-all)
   function insert(pos, str) {
     let t = String(str === null || str === undefined ? "" : str)
       .split(/\r?\n/)[0]
@@ -69,11 +66,11 @@ Item {
     else selectAll = false;
   }
 
-  // Keep the caret visible when the text is wider than the field.
+  // keep the caret visible on long text
   readonly property real caretX: fm.advanceWidth(text.substring(0, cursorPosition))
   readonly property real shift: Math.max(0, caretX - width + 2)
 
-  // Bounded, explicit-only paste. One read at a time; extra requests are dropped.
+  // bounded paste, explicit only, one at a time
   Process {
     id: pasteProc
     running: false
@@ -166,7 +163,7 @@ Item {
     case Qt.Key_End: selectAll = false; cursorPosition = text.length; e.accepted = true; return;
     default: break;
     }
-    // Printable characters only; leave shortcuts (Esc, Enter...) to the popup.
+    // printable chars only, shortcuts (esc, enter...) go to the popup
     if (!ctrl && !(mods & Qt.AltModifier) && !(mods & Qt.MetaModifier)
         && e.text.length > 0 && e.text.charCodeAt(0) >= 32 && e.text.charCodeAt(0) !== 127) {
       insert(cursorPosition, e.text);

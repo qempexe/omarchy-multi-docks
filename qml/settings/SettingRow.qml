@@ -2,20 +2,10 @@ import QtQuick
 import QtQuick.Layouts
 import "../js/Effects.js" as Fx
 
-// One setting in the dock settings: a label and a plain-language hint on the
-// left, the value / switch / reset on the right, and the control underneath.
-//
-//   kind  enum    segmented control (<= 4 options) or wrapping chips
-//         bool    switch
-//         int     slider with - / + nudge buttons and a notch at the default
-//         effect  tiles, each one plays its auto-hide effect on a tiny dock
-//         scheme  tiles, each one draws a tiny dock in that color mode
-//         palette Background / Text / Accent, each from swatches or a hex.
-//                 `value` is { key: color }, edits come as { key, value },
-//                 the reset arrow sends { reset: true }
-//
-// Text and soft tints come from `fg`; selected / filled parts use `accent`.
-// Numbers are shown plain, with no px / ms / % suffix.
+// one setting row: label + hint left, value/switch/reset right, control below.
+// kinds: enum (segments if <= 4, else chips), bool, int (slider + -/+ + default notch),
+// effect, scheme, palette (value { key: color }, edits { key, value }, reset { reset: true }).
+// no px/ms/% suffixes on purpose
 Item {
   id: root
 
@@ -75,7 +65,7 @@ Item {
   opacity: dimmed ? 0.4 : 1.0
   Behavior on opacity { NumberAnimation { duration: 140 } }
 
-  // Small square button used for - / + and reset.
+  // small square button (-, +, reset)
   component IconButton: Rectangle {
     id: btn
     property string glyph: ""
@@ -109,7 +99,7 @@ Item {
     anchors.top: parent.top
     spacing: 9
 
-    // ---- head: label + hint | stepper / switch / reset ----------------------
+    // head
     RowLayout {
       Layout.fillWidth: true
       spacing: 8
@@ -183,7 +173,7 @@ Item {
         }
       }
 
-      // back to the default, only once it differs
+      // reset, only when changed
       IconButton {
         visible: !root.atDefault
         Layout.alignment: Qt.AlignTop
@@ -193,7 +183,7 @@ Item {
       }
     }
 
-    // ---- enum: segmented control -----------------------------------------------
+    // segments
     Rectangle {
       visible: root.useSegments
       Layout.fillWidth: true
@@ -244,7 +234,7 @@ Item {
       }
     }
 
-    // ---- enum with many options: wrapping chips -------------------------------------
+    // chips
     Flow {
       visible: root.kind === "enum" && !root.useSegments
       Layout.fillWidth: true
@@ -279,7 +269,7 @@ Item {
       }
     }
 
-    // ---- effect: tiles that play the real effect ---------------------------------
+    // effect tiles playing the real thing
     GridLayout {
       visible: root.kind === "effect"
       Layout.fillWidth: true
@@ -293,7 +283,7 @@ Item {
           id: tile
           required property var modelData
           readonly property bool on: root.same(root.value, modelData)
-          // 0 = shown, 1 = hidden, looping.
+          // 0 shown, 1 hidden, looping
           property real t: 0
           readonly property var fx: Fx.state(modelData, t, 9)
 
@@ -321,7 +311,7 @@ Item {
             }
           }
 
-          // a little screen with its dock on the bottom edge
+          // tiny screen with a dock on the bottom edge
           Rectangle {
             id: screenBox
             anchors.horizontalCenter: parent.horizontalCenter
@@ -392,7 +382,7 @@ Item {
       }
     }
 
-    // ---- scheme: tiles that draw a tiny dock in each color mode ---------------------
+    // scheme tiles, a tiny dock in each color mode
     GridLayout {
       visible: root.kind === "scheme"
       Layout.fillWidth: true
@@ -417,7 +407,7 @@ Item {
           border.color: on ? root.accent : root.tint(0.10)
           Behavior on color { ColorAnimation { duration: 100 } }
 
-          // a little dock painted in that scheme
+          // tiny dock in that scheme
           Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 9
@@ -474,13 +464,13 @@ Item {
       }
     }
 
-    // ---- palette: pick Background, Text or Accent, then a swatch or a hex -------------
+    // palette: bg / text / accent, then swatch or hex
     ColumnLayout {
       visible: root.kind === "palette"
       Layout.fillWidth: true
       spacing: 10
 
-      // which color is being edited; each segment shows its current color
+      // which color you're editing, each shows its current color
       Rectangle {
         Layout.fillWidth: true
         implicitHeight: 30
@@ -580,8 +570,7 @@ Item {
           border.color: root.tint(0.25)
         }
 
-        // Hex field. Not a TextInput on purpose: a TextInput keeps reading the
-        // clipboard in the background. This one only takes typed hex digits.
+        // hex field. not a TextInput (those keep reading the clipboard), typed hex only
         Rectangle {
           Layout.preferredWidth: 110
           implicitHeight: 28
@@ -658,7 +647,7 @@ Item {
       }
     }
 
-    // ---- int: slider -------------------------------------------------------------
+    // slider
     ColumnLayout {
       visible: root.kind === "int"
       Layout.fillWidth: true
@@ -684,7 +673,7 @@ Item {
             color: root.accent
           }
         }
-        // notch where the default sits
+        // default notch
         Rectangle {
           visible: root.defaultValue !== null
           width: 2; height: 12; radius: 1
@@ -711,7 +700,7 @@ Item {
             let v = root.min + t * (root.max - root.min);
             v = Math.round((v - root.min) / root.step) * root.step + root.min;
             v = Math.max(root.min, Math.min(root.max, v));
-            // only real changes, so dragging does not rewrite the config each pixel
+            // only real changes, so a drag doesn't rewrite the config every pixel
             if (v !== Number(root.value)) root.edited(v);
           }
           onPressed: m => apply(m.x)

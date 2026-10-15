@@ -15,8 +15,7 @@ PanelWindow {
   readonly property var cfg: svc.docks[idx] || svc.defaults
   readonly property var pal: svc.palette(cfg)
 
-  // By category: each app gets a steady hue from its first desktop category,
-  // used for its running dot and hover. Other modes use the accent.
+  // by category: a steady hue per app from its first category (dot + hover). other modes use the accent
   function toneFor(e) {
     if (cfg.style !== "category") return pal.ac;
     const cats = (e && e.categories) ? e.categories : [];
@@ -24,8 +23,7 @@ PanelWindow {
     return Qt.hsla(svc.hueOf(main), 0.55, 0.68, 1);
   }
   readonly property bool hz: cfg.edge === "top" || cfg.edge === "bottom"
-  // Window outline: the edge of the dock and its popups is a plain neutral
-  // line, or the accent color when the outline setting is on.
+  // outline: plain neutral line, or the accent when the setting is on
   function edgeColor(base) { return cfg.outline ? Qt.alpha(pal.ac, 0.8) : Qt.alpha(pal.fg, base) }
   readonly property int pad: 8
   readonly property int cell: cfg.size + 12
@@ -33,7 +31,7 @@ PanelWindow {
   readonly property int thick: cell + pad * 2
   readonly property int along: (cfg.apps.length + 1) * step - 6 + pad * 2
 
-  // Which monitor this dock is on (its own choice, or the primary screen).
+  // which monitor (its own choice or the primary)
   readonly property string mon: svc.monOf(cfg)
   screen: svc.screenFor(cfg)
   readonly property var screenNames: {
@@ -55,17 +53,14 @@ PanelWindow {
   readonly property bool full: cfg.apps.length >= maxApps
   readonly property int popEdge: ({ bottom: Edges.Top, top: Edges.Bottom, left: Edges.Right, right: Edges.Left })[cfg.edge]
 
-  // Margin for this dock's edge (shared by every dock on that edge). It lives
-  // inside the window, so the window is thick + margin deep and the visible
-  // dock is inset by the margin. That keeps the auto-hide strip on the very
-  // edge, and makes the reserved band the same size as the window.
+  // margin lives inside the window: window = thickness + margin, dock inset by the margin.
+  // keeps the auto-hide strip on the very edge and the reserved band the same size
   readonly property int margin: svc.marginOf(cfg.edge)
   readonly property int winThick: thick + margin
-  // If the Omarchy bar is on this dock's edge, the window starts behind the
-  // bar's inner side so the dock sits above it, never over it.
+  // bar on this edge -> start behind its inner side so the dock sits above it, never over it
   readonly property int barOffset: svc.barOffset(mon, cfg.edge)
 
-  // What the colors / opacity / radius settings apply to.
+  // what colors/opacity/radius apply to
   property int scopeIdx: 0
   readonly property string scope: ["dock", "edge", "all"][scopeIdx]
   readonly property var scopeLabels: ["this dock", cfg.edge + " edge" + (screenNames.length > 1 ? " here" : ""), "all docks"]
@@ -78,20 +73,19 @@ PanelWindow {
   property bool addOpen: false
   property bool setOpen: false
   property bool lingering: false
-  // Pointer is on the dock or its reveal strip (after the optional show delay).
+  // pointer on the dock or its strip (after the show delay)
   property bool hoverOpen: false
   readonly property bool popOpen: menuSlot !== null || addOpen || setOpen || previewPop.visible
   readonly property bool open: !cfg.autohide || hoverOpen || popOpen || lingering
 
-  // ---- auto-hide motion ----
-  // hideT: 0 = shown, 1 = hidden. It is animated by hand (not a Behavior) so
-  // showing and hiding can use different easings.
+  // auto-hide. hideT: 0 shown, 1 hidden. animated by hand (not a Behavior)
+  // so showing and hiding can use different easings
   property real hideT: 0
   readonly property string effect: cfg.hideEffect || "slide"
   readonly property int strip: Math.max(1, Math.min(thick, cfg.revealStrip || 3))
   readonly property var fx: Fx.state(effect, hideT, winThick - strip)
   readonly property int speed: cfg.hideSpeed || 180
-  // Wave: delay between one icon and the next.
+  // wave: delay between icons
   readonly property int waveStep: Math.max(12, Math.min(45, Math.round(speed / 4)))
 
   NumberAnimation {
@@ -112,8 +106,7 @@ PanelWindow {
     hideAnim.start();
   }
 
-  // Tell the service whether we are on screen so it can hold or release the
-  // reserved space (auto-hide docks only reserve while visible).
+  // tell the service if we're on screen (auto-hide docks only reserve while visible)
   onOpenChanged: { svc.setShown(idx, open); animateHide(); }
   onCfgChanged: svc.setShown(idx, open)
   Component.onCompleted: { hideT = open ? 0 : 1; svc.setShown(idx, open); }
@@ -134,14 +127,13 @@ PanelWindow {
   implicitWidth: hz ? slotW : winThick
   implicitHeight: hz ? winThick : slotW
 
-  // The dock never reserves; spacers in Service.qml do.
+  // the dock never reserves itself, the spacers in Service.qml do
   exclusionMode: ExclusionMode.Ignore
   exclusiveZone: 0
   color: "transparent"
-  // Only the dock catches the mouse. With auto-hide, a band on the very edge
-  // does too: the reveal strip while hidden, and while shown everything from
-  // the edge up to the dock, so moving from the strip onto the dock never
-  // leaves the window (and never closes it again under the pointer).
+  // only the dock catches the mouse. with auto-hide also a band on the edge:
+  // the strip while hidden, and while shown everything from the edge to the dock,
+  // so going from the strip onto the dock never leaves the window
   mask: Region {
     item: barHit
     Region { item: edgeHit }
@@ -166,11 +158,8 @@ PanelWindow {
     });
   }
 
-  // Hyprland marks a window urgent when it asks for attention (a chat message,
-  // a finished build, ...) and clears the flag once the window is focused.
-  // The service follows Hyprland's urgent events and knows the app class of
-  // each urgent window. As a second source, Quickshell's own per-window flag is
-  // used when this Quickshell version has it.
+  // urgent windows (chat message, finished build...). hyprland clears the flag on focus.
+  // service follows the urgent events; quickshell's own flag is a second source when it exists
   function isUrgent(t) {
     if (!t) return false;
     if (svc.classUrgent(t.appId)) return true;
@@ -183,7 +172,7 @@ PanelWindow {
     return false;
   }
 
-  // Every window that is asking for attention, across all docks.
+  // all windows asking for attention, across all docks
   readonly property bool anyUrgent: {
     if (cfg.attention === "off") return false;
     for (let k = 0; k < cfg.apps.length; k++) {
@@ -196,7 +185,7 @@ PanelWindow {
   function activate(e, ws) {
     if (!e) return;
     if (ws.length === 0) { e.execute(); return; }
-    // A window that wants attention comes first, then normal cycling.
+    // the one asking for attention first, then normal cycling
     const u = ws.find(t => isUrgent(t));
     if (u && cfg.attention !== "off") { u.activate(); return; }
     const i = ws.findIndex(t => t.activated);
@@ -231,7 +220,7 @@ PanelWindow {
     id: stage
     anchors.fill: parent
 
-    // Rest geometry of the dock (fully shown).
+    // rest geometry (fully shown)
     readonly property real barAlong: win.cfg.stretch ? win.slotW : Math.min(win.along, win.slotW)
     readonly property real barW: win.hz ? barAlong : win.thick
     readonly property real barH: win.hz ? win.thick : barAlong
@@ -240,10 +229,10 @@ PanelWindow {
     }
     readonly property real restX: win.hz ? placeAlong(width) : (win.cfg.edge === "left" ? win.margin : width - barW - win.margin)
     readonly property real restY: win.hz ? (win.cfg.edge === "top" ? win.margin : height - barH - win.margin) : placeAlong(height)
-    // +1 when "toward the edge" is +x / +y, -1 otherwise.
+    // +1 when "toward the edge" is +x/+y, else -1
     readonly property int outward: (win.cfg.edge === "bottom" || win.cfg.edge === "right") ? 1 : -1
 
-    // Hover anywhere on the input region (dock or reveal strip).
+    // hover anywhere on the input region
     HoverHandler {
       id: stageHover
       onHoveredChanged: {
@@ -259,7 +248,7 @@ PanelWindow {
       }
     }
 
-    // Input region pieces (see `mask`).
+    // input region pieces (see mask)
     Item {
       id: barHit
       x: stage.restX; y: stage.restY
@@ -275,8 +264,7 @@ PanelWindow {
       height: win.hz ? band : stage.barH
     }
 
-    // Thin pill on the screen edge while an auto-hidden dock is away, so you
-    // can see where it is. It turns the attention color when an app asks.
+    // little pill on the edge while hidden so you know where it is. attention color when an app asks
     Rectangle {
       id: edgeHint
       visible: win.cfg.autohide && win.cfg.edgeHint && opacity > 0.01
@@ -306,7 +294,7 @@ PanelWindow {
     opacity: Math.max(0, Math.min(1, win.fx.opacity))
     visible: opacity > 0.005
     transform: Scale {
-      // Grow from / shrink onto the edge (or the center for "pop").
+      // grow from / shrink onto the edge (center for pop)
       origin.x: win.fx.center || win.hz ? bar.width / 2 : (win.cfg.edge === "left" ? 0 : bar.width)
       origin.y: win.fx.center || !win.hz ? bar.height / 2 : (win.cfg.edge === "top" ? 0 : bar.height)
       xScale: win.fx.scale * (win.hz ? 1 : win.fx.fold)
@@ -349,11 +337,9 @@ PanelWindow {
           id: slot
           required property string modelData
           required property int index
-          // Reading .values makes this binding re-run whenever Quickshell rescans
-          // the desktop entries, so the entry can never go stale or dangling.
+          // reading .values re-runs this when quickshell rescans entries, so it never goes stale
           readonly property var entry: { DesktopEntries.applications.values; return DesktopEntries.byId(modelData); }
-          // Last icon name that resolved. Kept so a rescan, a theme change or a
-          // momentarily missing entry does not blank the icon.
+          // last icon that resolved, so a rescan or theme change doesn't blank it
           property string iconName: ""
           property int iconTick: 0
           function refreshIcon() {
@@ -364,9 +350,7 @@ PanelWindow {
           onEntryChanged: refreshIcon()
           onWinsChanged: refreshIcon()
 
-          // Resolve to a path that actually exists in the current icon theme.
-          // Unresolvable names would otherwise render Quickshell's magenta
-          // "missing texture" checkerboard.
+          // only paths that exist in the icon theme, otherwise you get quickshell's magenta checkerboard
           readonly property string iconSrc: {
             slot.iconTick;
             const cands = [];
@@ -385,8 +369,7 @@ PanelWindow {
             }
             return "";
           }
-          // Icon theme can change after launch (theme switch), so re-check
-          // every few seconds while nothing resolves.
+          // icon theme can change (theme switch), so retry every few seconds while nothing resolves
           Timer {
             interval: 3000; repeat: true
             running: slot.iconSrc === ""
@@ -405,7 +388,7 @@ PanelWindow {
             return 0;
           }
 
-          // Wave: each icon pops on its own, one after another.
+          // wave: icons pop one after another
           property real pt: 0
           readonly property real waveT: win.effect === "wave" ? Math.max(0, Math.min(1, pt)) : 0
           Connections {
@@ -456,7 +439,7 @@ PanelWindow {
             source: slot.iconSrc
           }
 
-          // Plain letter tile when no icon can be found at all.
+          // letter tile when there's no icon at all
           Rectangle {
             anchors.centerIn: parent
             width: win.cfg.size; height: win.cfg.size
@@ -472,7 +455,7 @@ PanelWindow {
             }
           }
 
-          // Soft glow around the icon while an app wants attention.
+          // glow while the app wants attention
           Rectangle {
             id: glow
             anchors.fill: parent
@@ -613,8 +596,7 @@ PanelWindow {
 
   PopupWindow {
     id: previewPop
-    // Keep the last window list so the popup never collapses into a tiny
-    // empty rounded box (the black "bullet") while it is being hidden.
+    // keep the last list so the popup doesn't collapse into a tiny empty bubble while hiding
     property var shownWins: []
     property var shownSlot: null
     Connections {
@@ -790,7 +772,7 @@ PanelWindow {
         radius: 8
         color: Qt.alpha(win.pal.fg, 0.08)
 
-        // Clipboard-free field: see SearchField.qml for why this is not a TextInput.
+        // no TextInput here on purpose, see SearchField.qml
         SearchField {
           id: search
           anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
@@ -854,7 +836,7 @@ PanelWindow {
     anchor.edges: win.popEdge
     anchor.gravity: win.popEdge
     anchor.adjustment: PopupAdjustment.Slide | PopupAdjustment.Resize
-    // Never taller than the free part of the screen; the rows scroll instead.
+    // never taller than the free screen, rows scroll instead
     readonly property int room: Math.max(320, (win.screen ? win.screen.height : 1080)
       - (win.hz ? win.winThick + win.barOffset : 0) - 40)
     implicitWidth: panel.implicitWidth
