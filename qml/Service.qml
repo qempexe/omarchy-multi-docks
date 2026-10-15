@@ -86,7 +86,8 @@ Scope {
   readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e" })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
 
-  property var docks: [Object.assign({}, defaults)]
+  // empty until the config is read, so a default bottom dock never reserves space at startup
+  property var docks: []
   property var theme: mono
 
   // gap between the edge (or the omarchy bar) and the docks, one per edge, shared
@@ -326,7 +327,14 @@ Scope {
           root.margins = m;
         }
       } catch (e) {}
+      root.ensureDock();
     }
+    onLoadFailed: root.ensureDock()
+  }
+
+  // no config yet (or an unreadable one): start with a single default dock
+  function ensureDock() {
+    if (docks.length === 0) docks = [Object.assign({}, defaults)];
   }
 
   // theme colors

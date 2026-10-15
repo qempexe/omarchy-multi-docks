@@ -20,7 +20,10 @@ PanelWindow {
   }
   implicitWidth: 1
   implicitHeight: 1
-  exclusionMode: sp.zone > 0 ? ExclusionMode.Normal : ExclusionMode.Ignore
+  // always Normal: switching to Ignore at runtime may never reach the compositor
+  // (a 1x1 transparent window doesn't redraw), which left a stale zone behind.
+  // a zone of 0 reserves nothing
+  exclusionMode: ExclusionMode.Normal
   exclusiveZone: sp.zone
   color: "transparent"
   WlrLayershell.layer: WlrLayer.Top
