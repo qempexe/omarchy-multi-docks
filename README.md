@@ -332,13 +332,13 @@ The rule takes effect after a Hyprland reload (`hyprctl reload`). Find an app's 
 | File | Purpose |
 | --- | --- |
 | `manifest.json` | Omarchy plugin manifest |
-| `Service.qml` | Config, theme colors, per-monitor bar detection, layout math, one window per dock |
-| `Spacer.qml` | Invisible window that reserves space on one edge of one monitor |
-| `DockWindow.qml` | A single dock: icons, drag, hide effects, previews, menus and add-app picker |
-| `SettingsPanel.qml` | The settings panel: header with live preview, tabs, rows and footer |
-| `SettingRow.qml` | One setting: segmented control, switch, slider with stepper, or effect tiles |
-| `SearchField.qml` | Clipboard-free search field for the add-app picker (explicit, size-capped paste only) |
-| `Effects.js` | The auto-hide effect math, shared by the docks and the settings previews |
+| `qml/Service.qml` | Config, theme colors, per-monitor bar detection, layout math, one window per dock |
+| `qml/dock/Spacer.qml` | Invisible window that reserves space on one edge of one monitor |
+| `qml/dock/DockWindow.qml` | A single dock: icons, drag, hide effects, previews, menus and add-app picker |
+| `qml/settings/SettingsPanel.qml` | The settings panel: header with live preview, tabs, rows and footer |
+| `qml/settings/SettingRow.qml` | One setting: segmented control, switch, slider with stepper, or effect tiles |
+| `qml/dock/SearchField.qml` | Clipboard-free search field for the add-app picker (explicit, size-capped paste only) |
+| `qml/js/Effects.js` | The auto-hide effect math, shared by the docks and the settings previews |
 | `LICENSE` | MIT license |
 | `preview.png` | Preview shown at the top of this README and in the marketplace listing |
 | `screenshots/` | The images in this README: the desktop, effects, colors, outline, popups and every settings tab |
@@ -360,7 +360,7 @@ omarchy plugin validate .
 To lint the QML:
 
 ```bash
-qmllint -I "$OMARCHY_PATH/shell" Service.qml DockWindow.qml Spacer.qml SettingsPanel.qml SettingRow.qml SearchField.qml
+qmllint -I "$OMARCHY_PATH/shell" qml/Service.qml qml/dock/*.qml qml/settings/*.qml
 ```
 
 ## Updating

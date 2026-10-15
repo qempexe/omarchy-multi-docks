@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
-import "Effects.js" as Fx
+import "../js/Effects.js" as Fx
 
 // Settings of one dock:
 //

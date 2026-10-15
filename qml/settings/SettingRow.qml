@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
-import "Effects.js" as Fx
+import "../js/Effects.js" as Fx
 
 // One setting in the dock settings: a label and a plain-language hint on the
 // left, the value / switch / reset on the right, and the control underneath.

@@ -3,7 +3,8 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
-import "Effects.js" as Fx
+import "../js/Effects.js" as Fx
+import "../settings"
 
 PanelWindow {
   id: win
