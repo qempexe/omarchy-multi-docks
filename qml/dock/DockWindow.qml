@@ -4,6 +4,8 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
 import "../js/Effects.js" as Fx
+import "../js/Style.js" as Style
+import "../js/Paint.js" as Paint
 import "../settings"
 
 PanelWindow {
@@ -23,13 +25,18 @@ PanelWindow {
     return Qt.hsla(svc.hueOf(main), 0.55, 0.68, 1);
   }
   readonly property bool hz: cfg.edge === "top" || cfg.edge === "bottom"
-  // outline: plain neutral line, or the accent when the setting is on
-  function edgeColor(base) { return cfg.outline ? Qt.alpha(pal.ac, 0.8) : Qt.alpha(pal.fg, base) }
+  // popup edges: the accent when the dock's line is in the accent, else a plain line
+  function edgeColor(base) { return cfg.border === "accent" ? Qt.alpha(pal.ac, 0.8) : Qt.alpha(pal.fg, base) }
   readonly property int pad: 8
   readonly property int cell: cfg.size + 12
   readonly property int step: cell + 6
   readonly property int thick: cell + pad * 2
-  readonly property int along: (cfg.apps.length + 1) * step - 6 + pad * 2
+  // pointed or curled ends reach in: the icons start this much further along
+  readonly property int endRoom: svc.endRoom(cfg)
+  readonly property int padAlong: pad + endRoom
+  readonly property int along: (cfg.apps.length + 1) * step - 6 + padAlong * 2
+  // room past the dock's inner side for its shadow, glow and ornaments
+  readonly property int glow: Style.marginFor(cfg)
 
   // which monitor (its own choice or the primary)
   readonly property string mon: svc.monOf(cfg)
@@ -124,8 +131,8 @@ PanelWindow {
     left: cfg.edge === "left" ? barOffset : (hz ? slotStart : 0)
     right: cfg.edge === "right" ? barOffset : 0
   }
-  implicitWidth: hz ? slotW : winThick
-  implicitHeight: hz ? winThick : slotW
+  implicitWidth: hz ? slotW : winThick + glow
+  implicitHeight: hz ? winThick + glow : slotW
 
   // the dock never reserves itself, the spacers in Service.qml do
   exclusionMode: ExclusionMode.Ignore
@@ -300,13 +307,51 @@ PanelWindow {
       xScale: win.fx.scale * (win.hz ? 1 : win.fx.fold)
       yScale: win.fx.scale * (win.hz ? win.fx.fold : 1)
     }
-    radius: win.cfg.radius
-    color: Qt.alpha(win.pal.bg, win.cfg.opacity / 100 * Math.max(0, Math.min(1, win.fx.bg)))
-    border.width: win.anyUrgent ? 2 : 1
-    border.color: win.anyUrgent ? Qt.alpha(win.pal.hot, barPulse * Math.max(0, Math.min(1, win.fx.bg)))
-      : (win.cfg.outline ? Qt.alpha(win.pal.ac, 0.8 * Math.max(0, Math.min(1, win.fx.bg)))
-                         : Qt.alpha(win.pal.fg, 0.14 * Math.max(0, Math.min(1, win.fx.bg))))
+    // the rectangle only holds the icons in place; the body is painted just below it
+    color: "transparent"
     property real barPulse: 0.9
+    readonly property real bgFade: Math.max(0, Math.min(1, win.fx.bg))
+
+    // the dock's body: ends, surface, lines and ornaments (js/Style.js, js/Paint.js)
+    Canvas {
+      id: body
+      x: -win.glow
+      y: -win.glow
+      width: bar.width + win.glow * 2
+      height: bar.height + win.glow * 2
+      z: -1
+      opacity: bar.bgFade
+      readonly property string key: JSON.stringify([Style.styleOf(win.cfg), win.cfg.opacity, win.cfg.radius,
+                                                    win.cfg.edge, win.pal, width, height])
+      onKeyChanged: requestPaint()
+      onVisibleChanged: if (visible) requestPaint()
+      onPaint: {
+        const ctx = getContext("2d");
+        Paint.paint(ctx, Style.params(win.cfg, win.pal, width, height, win.glow, { edge: win.cfg.edge }));
+      }
+    }
+    // an app asking for attention: the outline pulses in the attention color
+    Canvas {
+      id: urgentRing
+      x: -win.glow
+      y: -win.glow
+      width: body.width
+      height: body.height
+      z: -1
+      visible: win.anyUrgent
+      opacity: bar.barPulse * bar.bgFade
+      readonly property string key: body.key + win.pal.hot
+      onKeyChanged: requestPaint()
+      onVisibleChanged: if (visible) requestPaint()
+      onPaint: {
+        const ctx = getContext("2d");
+        ctx.reset();
+        const p = Style.params(win.cfg, win.pal, width, height, win.glow, { edge: win.cfg.edge });
+        p.surface = "clear"; p.lines = "solid"; p.ornament = "none"; p.line = String(win.pal.hot);
+        p.lineGrad = []; p.lineWidth = 2; p.shadowBlur = 0; p.fill2 = ""; p.glass = false; p.pattern = ""; p.depth = "";
+        Paint.paint(ctx, p);
+      }
+    }
     SequentialAnimation on barPulse {
       running: win.anyUrgent && win.cfg.attention === "pulse"
       loops: Animation.Infinite
@@ -325,10 +370,10 @@ PanelWindow {
       columns: win.hz ? 1000 : 1
       spacing: 6
       function place(free) {
-        return win.cfg.align === "start" ? win.pad : win.cfg.align === "end" ? free - win.pad : free / 2;
+        return win.cfg.align === "start" ? win.padAlong : win.cfg.align === "end" ? free - win.padAlong : free / 2;
       }
-      x: win.hz ? (win.cfg.stretch ? place(bar.width - width) : win.pad) : win.pad
-      y: win.hz ? win.pad : (win.cfg.stretch ? place(bar.height - height) : win.pad)
+      x: win.hz ? (win.cfg.stretch ? place(bar.width - width) : win.padAlong) : win.pad
+      y: win.hz ? win.pad : (win.cfg.stretch ? place(bar.height - height) : win.padAlong)
 
       Repeater {
         model: win.cfg.apps

@@ -1,10 +1,14 @@
 import QtQuick
 import QtQuick.Layouts
+import "../js/Style.js" as Style
+import "../js/Paint.js" as Paint
 import "../js/Effects.js" as Fx
 
 // one setting row: label + hint left, value/switch/reset right, control below.
 // kinds: enum (segments if <= 4, else chips), bool, int (slider + -/+ + default notch),
-// effect, scheme, palette (value { key: color }, edits { key, value }, reset { reset: true }).
+// effect, scheme, palette (value { key: color }, edits { key, value }, reset { reset: true }),
+// style (a tile per option with a little dock drawn in it) and looks (the same for
+// whole looks, with an undo button: edits { undo: true }).
 // no px/ms/% suffixes on purpose
 Item {
   id: root
@@ -28,6 +32,15 @@ Item {
   property string fontFamily: "monospace"
   property var schemes: ({})         // scheme -> { bg, fg, ac } for the scheme tiles
   property var presets: []           // swatches for kind "palette"
+  property var abouts: ({})          // style tiles: a sentence per option, the picked one shows
+  property string styleKey: ""       // style tiles: which setting the tiles change ("look" for looks)
+  property var styleCfg: null        // style tiles: the dock as it is now
+  property var stylePal: null        // style tiles: its colors
+  property bool canUndo: false       // looks: show the undo button
+  readonly property string fullHint: {
+    const extra = abouts && typeof abouts[str(value)] === "string" ? abouts[str(value)] : "";
+    return hint + (hint !== "" && extra !== "" ? " " : "") + extra;
+  }
   property var targets: []           // palette: [{ key, label }]
   property int target: 0             // palette: which one is being edited
   readonly property string targetKey: targets.length > target ? targets[target].key : ""
@@ -121,8 +134,8 @@ Item {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: root.hint
-          visible: root.hint !== ""
+          text: root.fullHint
+          visible: root.fullHint !== ""
           color: root.fg
           opacity: 0.55
           font.family: root.fontFamily
@@ -379,6 +392,115 @@ Item {
             onClicked: root.edited(tile.modelData)
           }
         }
+      }
+    }
+
+    // style and look tiles: a little dock drawn the way that option draws it
+    GridLayout {
+      visible: root.kind === "style" || root.kind === "looks"
+      Layout.fillWidth: true
+      columns: 4
+      columnSpacing: 8
+      rowSpacing: 8
+
+      Repeater {
+        model: (root.kind === "style" || root.kind === "looks") ? root.options : []
+        delegate: Rectangle {
+          id: vtile
+          required property var modelData
+          readonly property bool on: root.same(root.value, modelData)
+
+          Layout.preferredWidth: Math.floor((root.width - 24) / 4)
+          Layout.preferredHeight: 56
+          radius: 8
+          color: on ? root.accentTint(0.16) : (vtileArea.containsMouse ? root.tint(0.10) : root.tint(0.05))
+          border.width: on ? 1.5 : 1
+          border.color: on ? root.accent : root.tint(0.10)
+          Behavior on color { ColorAnimation { duration: 100 } }
+
+          Canvas {
+            id: mini
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: 4
+            width: parent.width - 8
+            height: 32
+            // this dock with the one option changed (or a whole look)
+            readonly property var cfgHere: {
+              const base = Object.assign({}, root.styleCfg || ({}));
+              const set = root.kind === "looks" ? Style.lookSet(vtile.modelData) : ({ [root.styleKey]: vtile.modelData });
+              const out = Object.assign(base, set || ({}));
+              out.radius = Math.min(typeof out.radius === "number" ? out.radius : 16, 9);
+              if (out.shadow === "strong") out.shadow = "soft";
+              return out;
+            }
+            readonly property string key: JSON.stringify([cfgHere, root.stylePal, width, height])
+            onKeyChanged: requestPaint()
+            onVisibleChanged: if (visible) requestPaint()
+            onPaint: {
+              const ctx = getContext("2d");
+              if (!root.stylePal) { ctx.reset(); return; }
+              const m = 6;
+              Paint.paint(ctx, Style.params(cfgHere, root.stylePal, width, height, m, { edge: "bottom" }));
+              // three icons, so it reads as a dock
+              const fg = Style.rgb(root.stylePal.fg);
+              ctx.fillStyle = "rgba(" + Math.round(fg[0]) + "," + Math.round(fg[1]) + "," + Math.round(fg[2]) + ",0.55)";
+              const s = 7, cy = height / 2 - s / 2;
+              for (let i = -1; i <= 1; i++) {
+                ctx.beginPath();
+                ctx.roundedRect(width / 2 + i * (s + 4) - s / 2, cy, s, s, 2, 2);
+                ctx.fill();
+              }
+            }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 5
+            width: parent.width - 6
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            text: root.labelFor(vtile.modelData)
+            color: root.fg
+            opacity: vtile.on ? 1.0 : 0.7
+            font.family: root.fontFamily
+            font.pixelSize: 8
+            font.weight: vtile.on ? Font.DemiBold : Font.Normal
+          }
+          MouseArea {
+            id: vtileArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.edited(vtile.modelData)
+          }
+        }
+      }
+    }
+    // looks: one step back
+    Rectangle {
+      visible: root.kind === "looks" && root.canUndo
+      Layout.alignment: Qt.AlignLeft
+      implicitWidth: undoLabel.implicitWidth + 18
+      implicitHeight: 24
+      radius: 6
+      color: undoArea.containsMouse ? root.tint(0.16) : root.tint(0.08)
+      Text {
+        id: undoLabel
+        textFormat: Text.PlainText
+        anchors.centerIn: parent
+        text: "Undo the last look"
+        color: root.fg
+        font.family: root.fontFamily
+        font.pixelSize: 9
+      }
+      MouseArea {
+        id: undoArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.edited({ undo: true })
       }
     }
 

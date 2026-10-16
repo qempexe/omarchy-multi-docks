@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import "dock"
+import "js/Style.js" as Style
 
 Scope {
   id: root
@@ -21,14 +22,15 @@ Scope {
   readonly property string layersPath: cacheDir + "/layers.json"
 
   readonly property int maxDocks: 12
-  readonly property var defaults: ({
+  // a dock's settings. the body's shape, surface, edge and ornaments come from js/Style.js
+  readonly property var defaults: Object.assign({
     apps: [], edge: "bottom", align: "center", stretch: false,
     autohide: false, reserve: true, style: "theme", size: 44,
     opacity: 90, radius: 16, monitor: "", attention: "pulse",
     hideEffect: "slide", hideSpeed: 180, showDelay: 0, hideDelay: 450,
-    revealStrip: 3, edgeHint: true, outline: false,
+    revealStrip: 3, edgeHint: true,
     customBg: "#141414", customFg: "#e0e0e0", accentColor: "#ff6a1f"
-  })
+  }, Style.defaults())
 
   // color modes: theme, theme + your accent, greys, or theme with a tint per app category
   readonly property var styles: ["theme", "custom", "monochrome", "category"]
@@ -62,7 +64,8 @@ Scope {
   })
 
   function cleanDock(x) {
-    const d = Object.assign({}, defaults, x);
+    const d = Object.assign({}, defaults, x, Style.clean(x));
+    delete d.outline;   // older configs: became an accent line in Style.clean
     for (const k in ranges) {
       const v = Number(d[k]);
       d[k] = isFinite(v) ? Math.max(ranges[k][0], Math.min(ranges[k][1], Math.round(v))) : defaults[k];
@@ -78,7 +81,7 @@ Scope {
     // app ids only: plain strings, no control chars, no dupes
     d.apps = d.apps.filter((a, i, all) => typeof a === "string" && a.length > 0 && a.length <= 255
                                          && !/[\u0000-\u001f\u007f]/.test(a) && all.indexOf(a) === i).slice(0, 64);
-    for (const b of ["stretch", "autohide", "reserve", "edgeHint", "outline"]) d[b] = d[b] === true;
+    for (const b of ["stretch", "autohide", "reserve", "edgeHint"]) d[b] = d[b] === true;
     d.monitor = typeof d.monitor === "string" && d.monitor.length <= 64 ? d.monitor : "";
     return d;
   }
@@ -157,6 +160,8 @@ Scope {
   }
 
   function dockThick(d) { return d.size + 28; }
+  // how far pointed or curled ends reach in, so the first and last icon stay clear of them
+  function endRoom(d) { return Style.endRoom(d, dockThick(d), 8); }
 
   // how far in from the edge things reach on mon/edge: bar + docks (margin + thickness)
   function extent(list, mon, edge) {
@@ -185,7 +190,7 @@ Scope {
 
   function capacity(list, i) {
     const step = list[i].size + 12 + 6;
-    return Math.max(0, Math.floor((slotLen(list, i) - 10) / step) - 1);
+    return Math.max(0, Math.floor((slotLen(list, i) - 10 - 2 * endRoom(list[i])) / step) - 1);
   }
 
   function layoutOk(list) {
@@ -245,10 +250,46 @@ Scope {
 
   // look settings for one dock, its edge, or everything
   function patchScope(i, key, value, scope) {
-    if (scope !== "edge" && scope !== "all") { patch(i, key, value); return; }
+    patchManyScope(i, { [key]: value }, scope);
+  }
+  function patchManyScope(i, set, scope) {
     const ref = docks[i];
-    commit(docks.map(d => (scope === "all" || sameGroup(d, ref))
-      ? Object.assign({}, d, { [key]: value }) : d));
+    if (!ref) return false;
+    const n = docks.map((d, j) => (j === i || (scope === "all") || (scope === "edge" && sameGroup(d, ref)))
+      ? cleanDock(Object.assign({}, d, set)) : d);
+    // deeper ends take room from the icons (a layout that already didn't fit, say from a
+    // hand edited config, isn't blocked by it)
+    if (!layoutOk(n) && layoutOk(docks)) {
+      warn("Those ends need more room than this dock has. Remove some icons or pick a smaller icon size first.");
+      return false;
+    }
+    commit(n);
+    return true;
+  }
+
+  // ready made looks, with one step back. undo remembers each dock's body before the
+  // last look and is forgotten when the shell restarts
+  property var undoStyles: ({})
+  function applyLook(i, key, scope) {
+    const set = Style.lookSet(key);
+    if (!set || !docks[i]) return false;
+    const ref = docks[i];
+    const before = {};
+    for (let j = 0; j < docks.length; j++)
+      if (j === i || scope === "all" || (scope === "edge" && sameGroup(docks[j], ref))) before[j] = Style.styleOf(docks[j]);
+    if (!patchManyScope(i, set, scope)) return false;
+    undoStyles = before;
+    return true;
+  }
+  readonly property bool canUndo: Object.keys(undoStyles).length > 0
+  function undoLook() {
+    const before = undoStyles;
+    if (Object.keys(before).length === 0) return false;
+    const n = docks.map((d, j) => before[j] ? cleanDock(Object.assign({}, d, before[j])) : d);
+    if (!layoutOk(n)) { warn("The previous look no longer fits. Remove some icons first."); return false; }
+    undoStyles = ({});
+    commit(n);
+    return true;
   }
 
   function setMargin(edge, value) {

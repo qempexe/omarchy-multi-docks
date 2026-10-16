@@ -1,7 +1,7 @@
 # Multi-Docks
 
 Docks for [Omarchy](https://omarchy.org). As many as you want (well, twelve),
-on any edge, on any monitor.
+on any edge, on any monitor, each in a shape and finish of its own.
 
 ![Multi-Docks](preview.png)
 
@@ -36,11 +36,38 @@ under the bar, and an auto-hidden one on the right that only shows its edge hint
   back while an auto-hidden dock is away).
 - **Plays nice with the Omarchy bar**: a dock on the same edge sits next to it,
   never on top of it.
+- **Shapes and materials**: 32 kinds of ends (arrows, ribbon, cartouche, onion
+  dome, ...), 30 surfaces (frost, metal, velvet, wood, stained glass, ...), 22
+  edge lines, 18 ornaments and a shadow or glow. Or one of 16 ready made looks,
+  with an undo.
 - **Colors**: follow your theme, pick your own background/text/accent, monochrome,
-  or a tint per app category. Optional accent outline.
+  or a tint per app category.
 - **Nothing extra to install.** No scripts, no sudo, no network.
 
 ![Previews, the app menu and the app picker](screenshots/popups.png)
+
+## A look for every dock
+
+Every dock has its own body, built from four parts you pick on their own:
+
+- **Ends**: 32 kinds, from rounded and capsule to arrows, ribbon, braces, puzzle,
+  cartouche, fleur and onion dome. Pointed ones point left, right or both ways.
+- **Surface**: 30 materials, from faint and frost to brushed metal, carbon,
+  marble, velvet, wood, leather and stained glass, solid, as a gradient or as glass.
+- **Edge**: 22 lines, from a plain line to stitches, a chain, beads, a rope, a neon
+  tube or a gilded frame. Wavy lines, chains and beads follow the ends all the way round.
+- **Ornaments**: 18 kinds, studs, rivets, pearls, rosettes, scrolls, crowns,
+  laurels, art deco corners and more, in your accent color.
+
+Or start from one of 16 ready made looks and change what you like. **Undo the last
+look** goes back one step. Every option in the settings is a little picture of your
+own dock wearing it, in your colors, and **Apply to** can dress one dock, a whole
+edge or all of them at once.
+
+![The sixteen ready made looks](screenshots/looks.png)
+
+The icons always stay clear of the shape: pointed ends, and ornaments that sit
+inside the ends (scrolls, crowns, laurels), move them in a little.
 
 ## Install
 
@@ -61,7 +88,9 @@ Needs Omarchy 4 with Hyprland (it's Hyprland only).
 3. Drag an icon somewhere else.
 4. Right-click empty dock space -> **Hide** -> turn on **Auto-hide** and pick an
    effect. Move the mouse away, then touch the edge.
-5. **Docks** tab -> **Add dock** to put a second one on another edge (or another
+5. **Shape** tab -> pick a ready made look, then try other ends, a surface on
+   **Surface** or a line and an ornament on **Edge**.
+6. **Docks** tab -> **Add dock** to put a second one on another edge (or another
    monitor with **Monitor**).
 
 ## Using it
@@ -95,12 +124,13 @@ becomes **⋯** and opens the settings.
 ## Settings
 
 Right-click empty space on a dock to open its settings. Everything applies right
-away and is saved in `~/.config/omarchy-dock/config.json`.
+away and is saved in `~/.config/omarchy-dock/config.json`. Seven tabs: **Place**,
+**Hide**, **Shape**, **Surface**, **Edge**, **Colors** and **Docks**.
 
 ![The settings tabs](screenshots/settings-tabs.png)
 
-At the top you see which dock it is, where it sits and a live preview of it (it
-scrolls when you have lots of icons). **Reset dock** puts everything back to the
+At the top you see which dock it is, where it sits and a live preview of it, drawn
+in the dock's own shape (it scrolls when you have lots of icons). **Reset dock** puts everything back to the
 defaults but keeps your apps and where the dock is. Click it twice.
 
 ![Scrolling preview with 20 apps](screenshots/header-scroll.png)
@@ -114,6 +144,7 @@ defaults but keeps your apps and where the dock is. Click it twice.
 | Position | center | start, center or end of the edge |
 | Full length | off | stretch across the whole edge |
 | Margin | 6 | gap to the edge (or the bar), 0-64 px, shared by every dock on that edge |
+| Icon size | 44 | 1-64 px, always this dock only |
 
 <p align="center"><img src="screenshots/settings-place.png" alt="Place" width="440"></p>
 
@@ -138,28 +169,67 @@ Here's every effect frame by frame, same timing the dock uses:
 
 <p align="center"><img src="screenshots/settings-hide.png" alt="Hide" width="440"></p>
 
-### Look
+### Shape
+
+| Setting | Default | |
+| --- | --- | --- |
+| Apply to | this dock | same as on Hide |
+| Ready made | | 16 complete looks: ends, surface, lines and ornaments in one click. **Undo the last look** goes back one step |
+| Ends | rounded | 32 kinds, each tile drawn the way your dock would look |
+| Pointing | right | right, left or both ways, for ends that point and surfaces that lean (on a side dock, right means down) |
+| Square corners | none | keep the corners on the screen edge side or the windows side square (rounded and capsule ends) |
+| Corner radius | 16 | 1-64 px, for rounded ends |
+
+Because pointed ends and some ornaments move the icons in, a full dock can
+refuse one of them until you remove an icon or pick a smaller icon size.
+
+![Every kind of end](screenshots/ends.png)
+
+<p align="center"><img src="screenshots/settings-shape.png" alt="Shape" width="440"></p>
+
+### Surface
+
+| Setting | Default | |
+| --- | --- | --- |
+| Surface | solid | 30 kinds, from faint and frost to metal, marble, velvet and stained glass |
+| Opacity | 90 | how much of the dock's color shows, 1-100 % |
+| Fill | solid | solid, gradient or glass (for surfaces that take it) |
+| Gradient into | accent | accent, lighter or darker |
+| Gradient across | off | fade from the screen edge toward the windows instead of end to end |
+| Texture | none | stripes, dots or grid |
+| Depth | flat | raised or sunken |
+| Shadow | soft | none, soft or strong |
+| Shadow color | dark | dark, or the accent for a glow |
+
+<p align="center"><img src="screenshots/settings-surface.png" alt="Surface" width="440"></p>
+
+### Edge
+
+| Setting | Default | |
+| --- | --- | --- |
+| Lines | solid | 22 kinds. Wavy, sawtooth, chain and beads go all the way round the ends too |
+| Line color | subtle | subtle, text color or accent. Accent also outlines the popups and this panel |
+| Line width | 1 | 1-4 px |
+| Rail on | windows side | windows side, screen edge or both (for Rail) |
+| Gradient lines | off | fade the lines into a lighter shade |
+| Ornaments | none | 18 kinds, in the accent color |
+
+<p align="center"><img src="screenshots/settings-edge.png" alt="Edge" width="440"></p>
+
+### Colors
 
 | Setting | Default | |
 | --- | --- | --- |
 | Apply to | this dock | same as on Hide |
 | Colors | theme | follow theme, custom, monochrome, by category |
 | Custom colors | #141414 / #e0e0e0 / #ff6a1f | background, text, accent (swatch or hex) |
-| Attention | pulse | off, dot, or pulse (dot + glow + pulsing border) |
-| Opacity | 90 | background, 1-100 % |
-| Corner radius | 16 | 1-64 px |
-| Window outline | off | draw edges in the accent color |
-| Icon size | 44 | 1-64 px, always this dock only |
+| Attention | pulse | off, dot, or pulse (dot + glow + an outline that pulses) |
 
 The same dock in each color mode:
 
 ![The four color modes](screenshots/colors.png)
 
-Outline off and on:
-
-![Window outline](screenshots/outline.png)
-
-<p align="center"><img src="screenshots/settings-look.png" alt="Look" width="440"></p>
+<p align="center"><img src="screenshots/settings-colors.png" alt="Colors" width="440"></p>
 
 ### Docks
 
@@ -206,10 +276,26 @@ Then `hyprctl reload`. You can find the class with `hyprctl clients | grep class
       "hideDelay": 450,
       "revealStrip": 3,
       "edgeHint": true,
-      "outline": false,
       "customBg": "#141414",
       "customFg": "#e0e0e0",
-      "accentColor": "#ff6a1f"
+      "accentColor": "#ff6a1f",
+      "ends": "rounded",
+      "pointing": "right",
+      "flatSide": "none",
+      "surface": "filled",
+      "fill": "solid",
+      "gradientTo": "accent",
+      "gradientAcross": false,
+      "pattern": "none",
+      "depth": "flat",
+      "lines": "solid",
+      "border": "subtle",
+      "borderWidth": 1,
+      "railSide": "windows",
+      "outlineGradient": false,
+      "ornaments": "none",
+      "shadow": "soft",
+      "shadowColor": "dark"
     }
   ],
   "margins": { "top": 6, "bottom": 6, "left": 6, "right": 6 }
@@ -217,7 +303,8 @@ Then `hyprctl reload`. You can find the class with `hyprctl clients | grep class
 ```
 
 `apps` are desktop entry ids in dock order. Anything missing or weird falls back
-to the default. It's read at startup, so restart the shell after editing by hand.
+to the default. A config from before 2.1.0 with `"outline": true` gets an accent
+line, so the dock looks the same after the update. It's read at startup, so restart the shell after editing by hand.
 
 ## Things to know
 
@@ -233,6 +320,9 @@ to the default. It's read at startup, so restart the shell after editing by hand
   few seconds. If it misses yours, raise the margin.
 - Attention is per app, not per window, and needs the rule above on Omarchy.
 - Effects other than slide cost a bit of GPU while they play.
+- The dock's body is drawn once and again only when its look, size or colors
+  change. The attention pulse redraws nothing, it only fades.
+- Undo for looks lasts until the shell restarts.
 - The hex field only takes typing, no paste.
 - Mostly mouse driven, the dock itself has no keyboard navigation.
 - Tested mostly on my own setups, so unusual multi-monitor layouts might need fixes.
@@ -251,7 +341,13 @@ qml/
 ├── Service.qml       config, theme, bar detection, layout
 ├── dock/             DockWindow, Spacer (reserved space), SearchField
 ├── settings/         SettingsPanel, SettingRow
-└── js/Effects.js     the hide effect math
+└── js/
+    ├── Effects.js    the hide effect math
+    ├── Style.js      the look settings, the ready made looks, room for the ends
+    ├── Paint.js      draws a dock's body
+    ├── Trace.js      walks a shape's outline (lines and beads that follow the ends)
+    └── parts/        Ends, Surfaces, Lines, Ornaments: one entry per kind, with its drawing
+tests/test_style.js   node tests/test_style.js
 ```
 
 ## Updating

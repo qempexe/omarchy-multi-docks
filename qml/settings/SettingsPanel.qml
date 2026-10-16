@@ -3,9 +3,11 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../js/Effects.js" as Fx
+import "../js/Style.js" as Style
+import "../js/Paint.js" as Paint
 
 // settings for one dock: header (which dock, reset, close, live preview),
-// tabs place / hide / look / docks (alt+left/right), rows with hints + reset arrows,
+// tabs place / hide / shape / surface / edge / colors / docks (alt+left/right), rows with hints + reset arrows,
 // dimmed when they do nothing right now, footer
 Item {
   id: root
@@ -34,7 +36,8 @@ Item {
   function tint(a) { return Qt.rgba(ink.r, ink.g, ink.b, a) }
 
   // what each tab holds
-  readonly property var tabs: ["Place", "Hide", "Look", "Docks"]
+  readonly property var tabs: ["Place", "Hide", "Shape", "Surface", "Edge", "Colors", "Docks"]
+  readonly property int docksTab: tabs.length - 1
   readonly property bool manyScreens: dock.screenNames.length > 1 || cfg.monitor !== ""
   readonly property string scopeHint: "Applies to " + (dock.scope === "dock" ? "this dock only"
     : dock.scope === "all" ? "every dock" : "every dock on the " + cfg.edge + " edge" + (dock.screenNames.length > 1 ? " of this monitor" : "")) + ". Set with Apply to."
@@ -57,7 +60,9 @@ Item {
         options: ["start", "center", "end"], fallback: "center" },
       { key: "stretch", label: "Full length", kind: "bool", hint: "Fill the whole slot instead of only fitting the icons.", fallback: false },
       { key: "margin", label: "Margin", kind: "int", min: 0, max: 64, fallback: 6,
-        hint: "Gap to the screen edge or the Omarchy bar. Shared by every dock on the " + cfg.edge + " edge." }
+        hint: "Gap to the screen edge or the Omarchy bar. Shared by every dock on the " + cfg.edge + " edge." },
+      { key: "size", label: "Icon size", kind: "int", min: 1, max: 64, fallback: 44,
+        hint: "Always this dock only. Refused when the icons would not fit." }
     ],
     [
       { key: "autohide", label: "Auto-hide", kind: "bool", hint: "Get out of the way until the pointer touches the edge.", fallback: false },
@@ -80,6 +85,83 @@ Item {
     ],
     [
       scopeRow,
+      { key: "look", label: "Ready made", kind: "looks", scoped: true,
+        hint: "A whole look at once: ends, surface, lines and ornaments. Colors, opacity, size and placement stay. " + scopeHint,
+        options: Style.lookKeys, labels: Style.lookLabels },
+      { key: "ends", label: "Ends", kind: "style", scoped: true, fallback: "rounded",
+        hint: "How both ends of the dock look.",
+        options: Style.ends.options, labels: Style.ends.labels, abouts: Style.ends.abouts },
+      { key: "pointing", label: "Pointing", kind: "enum", scoped: true, fallback: "right",
+        show: Style.pointingEnds.indexOf(cfg.ends) >= 0 || Style.leaningSurfaces.indexOf(cfg.surface) >= 0,
+        hint: "Which way pointed ends point, and which way leaning surfaces lean. On a side dock, right means down.",
+        options: ["right", "left", "both"], labels: { right: "Right", left: "Left", both: "Both ways" } },
+      { key: "flatSide", label: "Square corners", kind: "enum", scoped: true, fallback: "none",
+        show: cfg.ends === "rounded" || cfg.ends === "capsule",
+        hint: "Keeps the corners on one side square: the side on the screen edge, or the one facing the windows.",
+        options: ["none", "edge", "windows"], labels: { none: "None", edge: "Screen edge", windows: "Windows" } },
+      { key: "radius", label: "Corner radius", kind: "int", min: 1, max: 64, scoped: true, fallback: 16,
+        show: cfg.ends === "rounded",
+        hint: "Roundness of rounded ends." }
+    ],
+    [
+      scopeRow,
+      { key: "surface", label: "Surface", kind: "style", scoped: true, fallback: "filled",
+        hint: "What the dock is made of.",
+        options: Style.surfaces.options, labels: Style.surfaces.labels, abouts: Style.surfaces.abouts },
+      { key: "opacity", label: "Opacity", kind: "int", min: 1, max: 100, scoped: true, fallback: 90,
+        hint: "How much of the dock's color shows. Icons stay solid." },
+      { key: "fill", label: "Fill", kind: "enum", scoped: true, fallback: "solid",
+        show: Style.noGradient.indexOf(cfg.surface) < 0,
+        hint: "Gradient fades into a second color. Glass is see-through with a bright edge.",
+        options: ["solid", "gradient", "glass"], labels: { solid: "Solid", gradient: "Gradient", glass: "Glass" } },
+      { key: "gradientTo", label: "Gradient into", kind: "enum", scoped: true, fallback: "accent",
+        show: cfg.fill === "gradient" && Style.noGradient.indexOf(cfg.surface) < 0,
+        hint: "The color the gradient ends in.",
+        options: ["accent", "lighter", "darker"], labels: { accent: "Accent", lighter: "Lighter", darker: "Darker" } },
+      { key: "gradientAcross", label: "Gradient across", kind: "bool", scoped: true, fallback: false,
+        show: cfg.fill === "gradient" && Style.noGradient.indexOf(cfg.surface) < 0,
+        hint: "Fade from the screen edge toward the windows instead of from one end to the other." },
+      { key: "pattern", label: "Texture", kind: "enum", scoped: true, fallback: "none",
+        show: Style.noTexture.indexOf(cfg.surface) < 0,
+        hint: "A faint texture over the surface.",
+        options: ["none", "stripes", "dots", "grid"], labels: { none: "None", stripes: "Stripes", dots: "Dots", grid: "Grid" } },
+      { key: "depth", label: "Depth", kind: "enum", scoped: true, fallback: "flat",
+        show: Style.noDepth.indexOf(cfg.surface) < 0,
+        hint: "A light and a dark edge make the dock stand out or sink in.",
+        options: ["flat", "raised", "sunken"], labels: { flat: "Flat", raised: "Raised", sunken: "Sunken" } },
+      { key: "shadow", label: "Shadow", kind: "enum", scoped: true, fallback: "soft",
+        hint: "Under the dock.",
+        options: ["none", "soft", "strong"], labels: { none: "None", soft: "Soft", strong: "Strong" } },
+      { key: "shadowColor", label: "Shadow color", kind: "enum", scoped: true, fallback: "dark",
+        show: cfg.shadow !== "none",
+        hint: "Accent turns the shadow into a glow.",
+        options: ["dark", "accent"], labels: { dark: "Dark", accent: "Accent" } }
+    ],
+    [
+      scopeRow,
+      { key: "lines", label: "Lines", kind: "style", scoped: true, fallback: "solid",
+        hint: "The edge of the dock. Wavy, sawtooth, chain and beads follow the ends too.",
+        options: Style.lines.options, labels: Style.lines.labels, abouts: Style.lines.abouts },
+      { key: "border", label: "Line color", kind: "enum", scoped: true, fallback: "subtle",
+        show: Style.colorlessLines.indexOf(cfg.lines) < 0,
+        hint: "Accent also draws the edges of the dock's popups and this panel in the accent.",
+        options: ["subtle", "text", "accent"], labels: { subtle: "Subtle", text: "Text color", accent: "Accent" } },
+      { key: "borderWidth", label: "Line width", kind: "int", min: 1, max: 4, scoped: true, fallback: 1,
+        show: Style.widthlessLines.indexOf(cfg.lines) < 0 || cfg.ornaments === "brackets",
+        hint: "In pixels." },
+      { key: "railSide", label: "Rail on", kind: "enum", scoped: true, fallback: "windows",
+        show: cfg.lines === "rail",
+        hint: "Which long side the rail runs along.",
+        options: ["windows", "edge", "both"], labels: { windows: "Windows side", edge: "Screen edge", both: "Both" } },
+      { key: "outlineGradient", label: "Gradient lines", kind: "bool", scoped: true, fallback: false,
+        show: cfg.lines !== "none",
+        hint: "Fades the lines from their color into a lighter one." },
+      { key: "ornaments", label: "Ornaments", kind: "style", scoped: true, fallback: "none",
+        hint: "Decoration on top, in the accent color.",
+        options: Style.ornaments.options, labels: Style.ornaments.labels, abouts: Style.ornaments.abouts }
+    ],
+    [
+      scopeRow,
       { key: "style", label: "Colors", kind: "scheme", scoped: true, fallback: "theme",
         hint: "Follow theme matches your Omarchy theme live. Custom lets you choose the background, text and accent. Monochrome removes every hue. By category tints each app by its kind. " + scopeHint,
         options: svc.styles,
@@ -91,15 +173,7 @@ Item {
         fallback: { customBg: svc.defaults.customBg, customFg: svc.defaults.customFg, accentColor: svc.defaults.accentColor } },
       { key: "attention", label: "Attention", kind: "enum", scoped: true, fallback: "pulse",
         hint: "How an app that asks for attention shows up.",
-        options: ["off", "dot", "pulse"], labels: { off: "Off", dot: "Dot", pulse: "Pulse" } },
-      { key: "opacity", label: "Opacity", kind: "int", min: 1, max: 100, scoped: true, fallback: 90,
-        hint: "Background opacity. Icons stay solid." },
-      { key: "radius", label: "Corner radius", kind: "int", min: 1, max: 64, scoped: true, fallback: 16,
-        hint: "Roundness of the dock." },
-      { key: "outline", label: "Window outline", kind: "bool", scoped: true, fallback: false,
-        hint: "Draw the edge of the dock, its popups and this panel in the accent color. Off keeps a plain line." },
-      { key: "size", label: "Icon size", kind: "int", min: 1, max: 64, fallback: 44,
-        hint: "Always this dock only. Refused when the icons would not fit." }
+        options: ["off", "dot", "pulse"], labels: { off: "Off", dot: "Dot", pulse: "Pulse" } }
     ],
     []
   ]
@@ -117,6 +191,7 @@ Item {
     case "scope": return dock.scopeLabels[dock.scopeIdx];
     case "monitor": return cfg.monitor === "" ? "primary" : cfg.monitor;
     case "margin": return dock.margin;
+    case "look": return Style.lookOf(cfg);
     case "customColors": return { customBg: cfg.customBg, customFg: cfg.customFg, accentColor: cfg.accentColor };
     default: return cfg[r.key];
     }
@@ -127,6 +202,9 @@ Item {
     case "scope": dock.scopeIdx = Math.max(0, dock.scopeLabels.indexOf(v)); return;
     case "monitor": svc.patch(dock.idx, "monitor", v === "primary" ? "" : v); return;
     case "margin": svc.setMargin(cfg.edge, v); return;
+    case "look":
+      if (v && v.undo) svc.undoLook(); else svc.applyLook(dock.idx, v, dock.scope);
+      return;
     case "customColors":
       if (v.reset) {
         for (const k of ["customBg", "customFg", "accentColor"]) svc.patchScope(dock.idx, k, svc.defaults[k], dock.scope);
@@ -194,7 +272,7 @@ Item {
   Rectangle {
     anchors.fill: parent
     color: root.panelBg
-    border.color: root.cfg.outline ? Qt.alpha(root.accent, 0.8) : root.tint(0.14)
+    border.color: root.cfg.border === "accent" ? Qt.alpha(root.accent, 0.8) : root.tint(0.14)
     border.width: 1
     radius: 12
     clip: true
@@ -300,23 +378,40 @@ Item {
               previewFlick.contentX = Math.max(0, Math.min(max, frac * max));
             }
 
+            // the dock's body, drawn the way the dock draws it, a size smaller
+            Canvas {
+              id: pillBody
+              readonly property int m: 4
+              x: pill.x - m
+              y: pill.y - m
+              width: pill.width + m * 2
+              height: pill.height + m * 2
+              readonly property var look: Object.assign({}, root.cfg, {
+                radius: Math.min(root.cfg.radius, 15), shadow: "none",
+                lines: root.dock.anyUrgent ? "solid" : root.cfg.lines,
+                border: root.dock.anyUrgent ? "accent" : root.cfg.border })
+              readonly property var colors: root.dock.anyUrgent ? Object.assign({}, root.pal, { ac: root.pal.hot }) : root.pal
+              readonly property string key: JSON.stringify([look, colors, width, height])
+              onKeyChanged: requestPaint()
+              onVisibleChanged: if (visible) requestPaint()
+              onPaint: Paint.paint(getContext("2d"), Style.params(look, colors, width, height, m, { edge: "bottom" }))
+            }
             Rectangle {
               id: pill
+              // pointed and curled ends take room from the icons here too
+              readonly property int room: Style.endRoom(root.cfg, 30, 6)
               anchors.horizontalCenter: parent.horizontalCenter
               y: 7
-              width: Math.min(parent.width - 24, previewRow.implicitWidth + 16)
+              width: Math.min(parent.width - 24, previewRow.implicitWidth + 16 + room * 2)
               height: 30
-              radius: Math.min(root.cfg.radius, 15)
-              color: Qt.alpha(root.pal.bg, root.cfg.opacity / 100)
-              border.width: root.dock.anyUrgent ? 2 : 1
-              border.color: root.dock.anyUrgent ? root.pal.hot : root.dock.edgeColor(0.14)
+              color: "transparent"
               clip: true
 
               Flickable {
                 id: previewFlick
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
+                anchors.leftMargin: 8 + pill.room
+                anchors.rightMargin: 8 + pill.room
                 contentWidth: previewRow.implicitWidth
                 contentHeight: height
                 flickableDirection: Flickable.HorizontalFlick
@@ -565,6 +660,11 @@ Item {
                   options: r.options || []
                   labels: r.labels || ({})
                   presets: r.presets || []
+                  abouts: r.abouts || ({})
+                  styleKey: r.key
+                  styleCfg: root.cfg
+                  stylePal: root.pal
+                  canUndo: root.svc.canUndo
                   targets: r.targets || []
                   schemes: root.schemes
                   min: r.min !== undefined ? r.min : 0
@@ -588,7 +688,7 @@ Item {
 
             // docks tab
             ColumnLayout {
-              visible: root.tab === 3
+              visible: root.tab === root.docksTab
               Layout.fillWidth: true
               Layout.topMargin: 12
               Layout.bottomMargin: 12
