@@ -9,6 +9,11 @@ import "js/Style.js" as Style
 Scope {
   id: root
 
+  // the shell hands its plugin api over here. From Omarchy 4.5 it has `bar`: the
+  // bar's edge, whether it is hidden, and its thickness on each screen
+  property var shell: null
+  property var manifest: null
+
   readonly property string home: Quickshell.env("HOME")
   readonly property string cfgDir: home + "/.config/omarchy-dock"
   readonly property string cfgPath: cfgDir + "/config.json"
@@ -546,10 +551,12 @@ Scope {
       if (w <= 0 || h <= 0) continue;
 
       let edge = "", size = 0;
-      if (w >= sw * 0.5 && h <= sh * 0.25) {
+      // a bar is a thin strip. Wider ones on an edge are notifications, osd or panels
+      const thin = 80;
+      if (w >= sw * 0.5 && h <= sh * 0.25 && (ns.indexOf("bar") >= 0 || h <= thin)) {
         if (y < sh * 0.1) { edge = "top"; size = y + h; }
         else if (sh - (y + h) < sh * 0.1) { edge = "bottom"; size = sh - y; }
-      } else if (h >= sh * 0.5 && w <= sw * 0.25) {
+      } else if (h >= sh * 0.5 && w <= sw * 0.25 && (ns.indexOf("bar") >= 0 || w <= thin)) {
         if (x < sw * 0.1) { edge = "left"; size = x + w; }
         else if (sw - (x + w) < sw * 0.1) { edge = "right"; size = sw - x; }
       }
@@ -571,7 +578,44 @@ Scope {
     return { sizes: sizes, info: info.join(", ") };
   }
 
+  // Omarchy 4.5 and later: the bar's window spans the whole screen and the bar is a
+  // strip along one edge, so it can't be found among the layers. The shell says where
+  // it is and how thick it is on each screen instead.
+  readonly property var shellBar: {
+    try { return root.shell && root.shell.bar && typeof root.shell.bar.barSizeFor === "function" ? root.shell.bar : null; }
+    catch (e) { return null; }
+  }
+  function barFromShell() {
+    const b = root.shellBar;
+    const list = Quickshell.screens;
+    if (!b || list.length === 0) return false;
+    const pos = ["top", "bottom", "left", "right"].indexOf(String(b.position)) >= 0 ? String(b.position) : "top";
+    const sizes = {}, infos = {};
+    for (let k = 0; k < list.length; k++) {
+      const name = list[k].name;
+      const n = Number(b.barSizeFor(name));
+      const size = b.barHidden === true || !isFinite(n) || n <= 0 ? 0 : Math.round(n);
+      const one = { top: 0, bottom: 0, left: 0, right: 0 };
+      one[pos] = size;
+      sizes[name] = one;
+      infos[name] = b.barHidden === true ? pos + ", hidden" : pos + " " + size + "px";
+    }
+    if (JSON.stringify(sizes) !== JSON.stringify(root.barSizes)) root.barSizes = sizes;
+    if (JSON.stringify(infos) !== JSON.stringify(root.barInfos)) root.barInfos = infos;
+    return true;
+  }
+  Connections {
+    target: root.shellBar
+    ignoreUnknownSignals: true
+    function onBarSizesChanged() { root.barFromShell(); }
+    function onBarSizeChanged() { root.barFromShell(); }
+    function onPositionChanged() { root.barFromShell(); }
+    function onBarHiddenChanged() { root.barFromShell(); }
+  }
+  onShellBarChanged: barFromShell()
+
   function detectBar(json) {
+    if (root.barFromShell()) return;
     let data;
     try { data = JSON.parse(json); } catch (e) { return; }
     const list = Quickshell.screens;
@@ -596,7 +640,8 @@ Scope {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: { if (!barProbe.running) barProbe.running = true; }
+    // the layers are only read on shells that don't say where their bar is
+    onTriggered: { if (!root.barFromShell() && !barProbe.running) barProbe.running = true; }
   }
 
   // one window per dock
