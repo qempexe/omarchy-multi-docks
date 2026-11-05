@@ -479,12 +479,15 @@ Item {
               }
 
               // fades where icons are hidden
-              // over the icons only, in the dock's own color, so the ends stay as drawn
+              // over the icons only, in the dock's own color, so the ends and the outline stay as drawn
               Rectangle {
                 visible: previewFlick.contentX > 1
                 anchors.left: previewFlick.left
                 anchors.top: previewFlick.top
                 anchors.bottom: previewFlick.bottom
+                // clear of the body's outline above and below
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
                 width: 16
                 gradient: Gradient {
                   orientation: Gradient.Horizontal
@@ -497,6 +500,9 @@ Item {
                 anchors.right: previewFlick.right
                 anchors.top: previewFlick.top
                 anchors.bottom: previewFlick.bottom
+                // clear of the body's outline above and below
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
                 width: 16
                 gradient: Gradient {
                   orientation: Gradient.Horizontal
