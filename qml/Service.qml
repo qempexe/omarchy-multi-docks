@@ -13,6 +13,8 @@ Scope {
   // bar's edge, whether it is hidden, and its thickness on each screen
   property var shell: null
   property var manifest: null
+  // shown on the About tab: the manifest's version, which the shell hands over
+  readonly property string version: manifest && manifest.version ? String(manifest.version) : "2.1.0"
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string cfgDir: home + "/.config/omarchy-dock"

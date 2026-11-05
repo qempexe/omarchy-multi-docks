@@ -7,7 +7,7 @@ import "../js/Style.js" as Style
 import "../js/Paint.js" as Paint
 
 // settings for one dock: header (which dock, reset, close, live preview),
-// tabs place / hide / shape / surface / edge / colors / docks (alt+left/right), rows with hints + reset arrows,
+// tabs place / hide / shape / surface / edge / colors / docks / about (alt+left/right), rows with hints + reset arrows,
 // dimmed when they do nothing right now, footer
 Item {
   id: root
@@ -36,8 +36,12 @@ Item {
   function tint(a) { return Qt.rgba(ink.r, ink.g, ink.b, a) }
 
   // what each tab holds
-  readonly property var tabs: ["Place", "Hide", "Shape", "Surface", "Edge", "Colors", "Docks"]
-  readonly property int docksTab: tabs.length - 1
+  readonly property var tabs: ["Place", "Hide", "Shape", "Surface", "Edge", "Colors", "Docks", "About"]
+  readonly property int docksTab: tabs.length - 2
+  readonly property int aboutTab: tabs.length - 1
+  // the light logo on a dark panel, the dark one on a light panel
+  readonly property string logo: Qt.resolvedUrl(luma(panelSolid) > 0.5 ? "../../assets/logo-dark.png" : "../../assets/logo.png")
+  readonly property string moreUrl: "https://github.com/qempexe?tab=repositories&q=omarchy"
   readonly property bool manyScreens: dock.screenNames.length > 1 || cfg.monitor !== ""
   readonly property string scopeHint: "Applies to " + (dock.scope === "dock" ? "this dock only"
     : dock.scope === "all" ? "every dock" : "every dock on the " + cfg.edge + " edge" + (dock.screenNames.length > 1 ? " of this monitor" : "")) + ". Set with Apply to."
@@ -177,6 +181,7 @@ Item {
         hint: "How an app that asks for attention shows up.",
         options: ["off", "dot", "pulse"], labels: { off: "Off", dot: "Dot", pulse: "Pulse" } }
     ],
+    [],
     []
   ]
 
@@ -303,6 +308,17 @@ Item {
           RowLayout {
             Layout.fillWidth: true
             spacing: 12
+
+            Image {
+              Layout.alignment: Qt.AlignVCenter
+              Layout.preferredWidth: 28
+              Layout.preferredHeight: 28
+              source: root.logo
+              sourceSize.width: 56
+              sourceSize.height: 56
+              smooth: true
+              mipmap: true
+            }
 
             ColumnLayout {
               Layout.fillWidth: true
@@ -783,6 +799,92 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 8
                 wrapMode: Text.Wrap
+              }
+            }
+
+            // about tab: the logo, the version and a link to the other plugins
+            Item {
+              visible: root.tab === root.aboutTab
+              Layout.fillWidth: true
+              implicitHeight: aboutCol.implicitHeight + 56
+
+              Column {
+                id: aboutCol
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: 28
+                spacing: 6
+
+                Image {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: 96
+                  height: 96
+                  source: root.logo
+                  sourceSize.width: 192
+                  sourceSize.height: 192
+                  smooth: true
+                  mipmap: true
+                }
+                Item { width: 1; height: 2 }
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  text: "MULTI-DOCKS"
+                  color: root.ink
+                  font.family: root.fontFamily
+                  font.pixelSize: 17
+                  font.weight: Font.DemiBold
+                  font.letterSpacing: 4
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  visible: root.svc.version !== ""
+                  text: "Version " + root.svc.version
+                  color: root.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: 10
+                  font.letterSpacing: 1.5
+                }
+                Item { width: 1; height: 6 }
+                Row {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  Text { textFormat: Text.PlainText; text: "made with "; color: root.ink; opacity: 0.75; font.family: root.fontFamily; font.pixelSize: 10 }
+                  Text {   // the system font: a monospace font may draw the heart as an outline
+                    textFormat: Text.PlainText
+                    text: "♥"
+                    color: root.accent
+                    font.pixelSize: 11
+                    anchors.verticalCenter: parent.verticalCenter
+                  }
+                  Text { textFormat: Text.PlainText; text: " by qempexe"; color: root.ink; opacity: 0.75; font.family: root.fontFamily; font.pixelSize: 10 }
+                }
+                Item { width: 1; height: 4 }
+                Rectangle {
+                  anchors.horizontalCenter: parent.horizontalCenter
+                  width: moreText.implicitWidth + 28
+                  height: 30
+                  radius: 8
+                  color: moreArea.containsMouse ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.22) : root.tint(0.07)
+                  border.width: 1
+                  border.color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, moreArea.containsMouse ? 0.8 : 0.35)
+                  Behavior on color { ColorAnimation { duration: 100 } }
+                  Text {
+                    id: moreText
+                    textFormat: Text.PlainText
+                    anchors.centerIn: parent
+                    text: "Check out my other plugins ↗"
+                    color: root.ink
+                    font.family: root.fontFamily
+                    font.pixelSize: 9
+                  }
+                  MouseArea {
+                    id: moreArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Quickshell.execDetached(["xdg-open", root.moreUrl])
+                  }
+                }
               }
             }
 
