@@ -26,6 +26,25 @@ PanelWindow {
   exclusionMode: ExclusionMode.Normal
   exclusiveZone: sp.zone
   color: "transparent"
+  // never in the way of the mouse
+  mask: Region {}
+
+  // the compositor only takes a new zone with the window's next frame, and a window
+  // that never changes never draws one, so an auto-hide dock kept its space while
+  // hidden, or never got it back. change an invisible pixel to make it draw, and once
+  // more a moment later in case that frame went out before the zone did
+  property bool flip: false
+  onZoneChanged: { flip = !flip; redraw.restart(); }
+  Timer {
+    id: redraw
+    interval: 80
+    onTriggered: sp.flip = !sp.flip
+  }
+  Rectangle {
+    width: 1
+    height: 1
+    color: sp.flip ? Qt.rgba(0, 0, 0, 1 / 255) : Qt.rgba(0, 0, 0, 2 / 255)
+  }
   WlrLayershell.layer: WlrLayer.Top
   WlrLayershell.namespace: "omarchy-dock-reserve"
 }
