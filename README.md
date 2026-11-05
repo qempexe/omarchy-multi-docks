@@ -1,7 +1,13 @@
-# Multi-Docks
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo-dark.png">
+    <img src="assets/logo.png" alt="Multi-Docks logo" width="112">
+  </picture>
+</p>
 
-Docks for [Omarchy](https://omarchy.org). As many as you want (well, twelve),
-on any edge, on any monitor, each in a shape and finish of its own.
+<h1 align="center">Multi-Docks</h1>
+
+<p align="center">Docks for <a href="https://omarchy.org">Omarchy</a>. As many as you want (well, twelve), on any edge, on any monitor, each in a shape and finish of its own.</p>
 
 ![Multi-Docks](preview.png)
 
@@ -125,8 +131,8 @@ little after its desktop entry is gone.
 ## Settings
 
 Right-click empty space on a dock to open its settings. Everything applies right
-away and is saved in `~/.config/omarchy-dock/config.json`. Seven tabs: **Place**,
-**Hide**, **Shape**, **Surface**, **Edge**, **Colors** and **Docks**.
+away and is saved in `~/.config/omarchy-dock/config.json`. Eight tabs: **Place**,
+**Hide**, **Shape**, **Surface**, **Edge**, **Colors**, **Docks** and **About**.
 
 ![The settings tabs](screenshots/settings-tabs.png)
 
@@ -155,7 +161,7 @@ defaults but keeps your apps and where the dock is. Click it twice.
 | Setting | Default | |
 | --- | --- | --- |
 | Auto-hide | off | hide until the mouse touches the edge |
-| Reserve space | on | keep tiled windows out of the way (shared per edge) |
+| Reserve space | on | keep tiled windows out of the way (shared per edge). With auto-hide, windows make room while the dock shows and take it back when it hides |
 | Apply to | this dock | this dock, its edge, or all docks. Not saved |
 | Effect | slide | slide, fade, glide, zoom, fold, bounce, pop, wave |
 | Speed | 180 | ms, 60-800 |
@@ -241,6 +247,12 @@ the last one can't go) and what bar detection found on this monitor.
 
 <p align="center"><img src="screenshots/settings-docks.png" alt="Docks" width="440"></p>
 
+### About
+
+The logo, the version you're running and a link to my other plugins.
+
+<p align="center"><img src="screenshots/settings-about.png" alt="About" width="440"></p>
+
 ### Attention on Omarchy
 
 Omarchy focuses a window as soon as it asks for attention, so it never becomes
@@ -318,7 +330,7 @@ line, so the dock looks the same after the update. It's read at startup, so rest
 - Margins are per edge, not per monitor yet. Monitors are matched by name (`DP-1`),
   which can change if you swap ports.
 - Reserve space + auto-hide together means tiled windows resize every time the
-  dock shows or hides. Pick one if that bugs you.
+  dock shows or hides. Turn Reserve space off if that bugs you.
 - From Omarchy 4.5 the shell says where its bar is and how thick it is on each
   screen, and the docks follow it as it moves, hides or comes back. Older versions
   are checked every few seconds for a layer named "bar" or a thin strip on an edge.
@@ -371,6 +383,12 @@ omarchy plugin remove io.github.qempexe.multi-docks
 omarchy restart shell
 rm -rf ~/.config/omarchy-dock ~/.cache/omarchy-dock   # only if you want your docks gone too
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the
+layout of the code and how to test, and everyone taking part follows the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
