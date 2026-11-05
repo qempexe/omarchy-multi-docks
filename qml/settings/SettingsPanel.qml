@@ -463,33 +463,29 @@ Item {
               }
 
               // fades where icons are hidden
-              // fades where icons are hidden
+              // over the icons only, in the dock's own color, so the ends stay as drawn
               Rectangle {
                 visible: previewFlick.contentX > 1
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                anchors.margins: 1
-                width: 22
-                radius: parent.radius
+                anchors.left: previewFlick.left
+                anchors.top: previewFlick.top
+                anchors.bottom: previewFlick.bottom
+                width: 16
                 gradient: Gradient {
                   orientation: Gradient.Horizontal
-                  GradientStop { position: 0.0; color: root.panelSolid }
-                  GradientStop { position: 1.0; color: Qt.alpha(root.panelSolid, 0) }
+                  GradientStop { position: 0.0; color: Qt.alpha(root.pal.bg, root.cfg.opacity / 100) }
+                  GradientStop { position: 1.0; color: Qt.alpha(root.pal.bg, 0) }
                 }
               }
               Rectangle {
                 visible: previewFlick.contentX < previewFlick.contentWidth - previewFlick.width - 1
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                anchors.margins: 1
-                width: 22
-                radius: parent.radius
+                anchors.right: previewFlick.right
+                anchors.top: previewFlick.top
+                anchors.bottom: previewFlick.bottom
+                width: 16
                 gradient: Gradient {
                   orientation: Gradient.Horizontal
-                  GradientStop { position: 0.0; color: Qt.alpha(root.panelSolid, 0) }
-                  GradientStop { position: 1.0; color: root.panelSolid }
+                  GradientStop { position: 0.0; color: Qt.alpha(root.pal.bg, 0) }
+                  GradientStop { position: 1.0; color: Qt.alpha(root.pal.bg, root.cfg.opacity / 100) }
                 }
               }
             }
