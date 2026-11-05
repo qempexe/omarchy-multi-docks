@@ -318,6 +318,40 @@ Scope {
 
   function removeApp(i, id) { patch(i, "apps", docks[i].apps.filter(a => a !== id)); }
 
+  // Uninstalled apps leave the docks by themselves. Apps are only ever pinned from the
+  // desktop entries, so one whose entry is gone was uninstalled. It has to stay gone a
+  // while first, so a package being replaced or a rescan of the entries doesn't count,
+  // and nothing is decided before the entries have been read at all.
+  property var missingSince: ({})
+  property int goneAfter: 20000
+  function pruneUninstalled() {
+    const list = DesktopEntries.applications.values;
+    if (!list || list.length < 5 || docks.length === 0) return;
+    const now = Date.now(), since = {}, gone = [];
+    for (const d of docks) for (const id of d.apps) {
+      if (DesktopEntries.byId(id)) continue;
+      since[id] = missingSince[id] || now;
+      if (now - since[id] >= goneAfter && gone.indexOf(id) < 0) gone.push(id);
+    }
+    missingSince = since;
+    if (gone.length === 0) return;
+    // more than half of them at once looks like the entries not being read right,
+    // not like uninstalling: leave the docks alone
+    const pinned = [];
+    for (const d of docks) for (const id of d.apps) if (pinned.indexOf(id) < 0) pinned.push(id);
+    if (gone.length > 1 && gone.length * 2 > pinned.length) return;
+    commit(docks.map(d => d.apps.some(a => gone.indexOf(a) >= 0)
+      ? Object.assign({}, d, { apps: d.apps.filter(a => gone.indexOf(a) < 0) }) : d));
+    warn(gone.length === 1 ? gone[0].replace(/\.desktop$/, "") + " is no longer installed, so it left the dock."
+                           : gone.length + " apps are no longer installed, so they left the docks.");
+  }
+  Timer {
+    interval: 5000
+    running: true
+    repeat: true
+    onTriggered: root.pruneUninstalled()
+  }
+
   function moveApp(i, from, to) {
     const a = docks[i].apps.slice();
     a.splice(to, 0, a.splice(from, 1)[0]);
