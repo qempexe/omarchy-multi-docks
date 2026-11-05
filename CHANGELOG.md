@@ -10,6 +10,8 @@ All notable changes to Multi-Docks. The format follows
 
 - **Icon scale** (Place): the icons bigger or smaller inside the dock, without changing
   the dock. They stop growing at its outline.
+- A logo, in the settings header too, and an **About** tab with the version and a link
+  to more plugins.
 
 ### Changed
 
@@ -18,14 +20,18 @@ All notable changes to Multi-Docks. The format follows
 
 ### Fixed
 
+- Reserve space with auto-hide: the windows make room again when the dock shows, and
+  take the space back when it hides. The space only changed when something else made
+  the shell redraw, so it was often left behind or never came.
 - On Omarchy 4.5 the bar wasn't found, as its window now spans the screen. Docks on
   the side edges started at the very top, over the bar. The bar now comes from the
   shell, on every screen, and the docks follow it as it moves, hides or comes back.
 - A wide panel on an edge, like the notifications, was taken for a bar, and docks on
   that edge stood that far in from it.
 - In the settings preview, the fades at the ends of a long dock covered the dock's
-  own ends.
-- A warning in the shell log while a dock's icons were being made.
+  own ends and its outline.
+- Warnings in the shell log while a dock's icons were being made, and while a removed
+  dock was going away.
 
 ## [2.1.0] - 2026-10-17
 
