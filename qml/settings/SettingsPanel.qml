@@ -345,6 +345,8 @@ Item {
                 opacity: 0.6
                 font.family: root.fontFamily
                 font.pixelSize: 9
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
                 elide: Text.ElideRight
               }
             }
