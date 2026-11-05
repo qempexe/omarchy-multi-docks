@@ -31,6 +31,9 @@ PanelWindow {
   readonly property int cell: cfg.size + 12
   readonly property int step: cell + 6
   readonly property int thick: cell + pad * 2
+  // the icons can be bigger or smaller than the dock's size, but never past its outline:
+  // at most the slot they sit in, a pixel short on each side
+  readonly property int iconPx: Math.max(6, Math.min(cell - 2, Math.round(cfg.size * cfg.iconScale / 100)))
   // pointed or curled ends reach in: the icons start this much further along
   readonly property int endRoom: svc.endRoom(cfg)
   readonly property int padAlong: pad + endRoom
@@ -482,7 +485,7 @@ PanelWindow {
 
           IconImage {
             anchors.centerIn: parent
-            implicitSize: win.cfg.size
+            implicitSize: win.iconPx
             visible: slot.iconSrc !== ""
             source: slot.iconSrc
           }
@@ -490,7 +493,7 @@ PanelWindow {
           // letter tile when there's no icon at all
           Rectangle {
             anchors.centerIn: parent
-            width: win.cfg.size; height: win.cfg.size
+            width: win.iconPx; height: win.iconPx
             radius: width * 0.25
             visible: slot.iconSrc === ""
             color: Qt.alpha(win.pal.fg, 0.15)

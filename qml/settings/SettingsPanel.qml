@@ -62,7 +62,9 @@ Item {
       { key: "margin", label: "Margin", kind: "int", min: 0, max: 64, fallback: 6,
         hint: "Gap to the screen edge or the Omarchy bar. Shared by every dock on the " + cfg.edge + " edge." },
       { key: "size", label: "Icon size", kind: "int", min: 1, max: 64, fallback: 44,
-        hint: "Always this dock only. Refused when the icons would not fit." }
+        hint: "Always this dock only. Refused when the icons would not fit." },
+      { key: "iconScale", label: "Icon scale", kind: "int", min: 50, max: 200, step: 5, fallback: 100,
+        hint: "Makes the icons bigger or smaller inside the dock, without changing the dock. They stop growing at its outline." }
     ],
     [
       { key: "autohide", label: "Auto-hide", kind: "bool", hint: "Get out of the way until the pointer touches the edge.", fallback: false },
@@ -433,7 +435,8 @@ Item {
                         if (n.startsWith("/")) return "file://" + n;
                         return Quickshell.iconPath(n, true) || "";
                       }
-                      width: 20; height: 20
+                      // the icon scale shows here too, up to what the preview's body holds
+                      width: Math.max(10, Math.min(28, Math.round(20 * root.cfg.iconScale / 100))); height: width
                       IconImage {
                         anchors.fill: parent
                         visible: parent.src !== ""
@@ -459,6 +462,7 @@ Item {
                 }
               }
 
+              // fades where icons are hidden
               // fades where icons are hidden
               Rectangle {
                 visible: previewFlick.contentX > 1

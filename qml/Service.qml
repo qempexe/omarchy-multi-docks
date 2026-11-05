@@ -30,7 +30,7 @@ Scope {
   // a dock's settings. the body's shape, surface, edge and ornaments come from js/Style.js
   readonly property var defaults: Object.assign({
     apps: [], edge: "bottom", align: "center", stretch: false,
-    autohide: false, reserve: true, style: "theme", size: 44,
+    autohide: false, reserve: true, style: "theme", size: 44, iconScale: 100,
     opacity: 90, radius: 16, monitor: "", attention: "pulse",
     hideEffect: "slide", hideSpeed: 180, showDelay: 0, hideDelay: 450,
     revealStrip: 3, edgeHint: true,
@@ -64,7 +64,7 @@ Scope {
 
   // allowed range per number, used to clean hand edited configs and resets
   readonly property var ranges: ({
-    size: [1, 64], opacity: [1, 100], radius: [1, 64],
+    size: [1, 64], iconScale: [50, 200], opacity: [1, 100], radius: [1, 64],
     hideSpeed: [60, 800], showDelay: [0, 1000], hideDelay: [0, 2000], revealStrip: [1, 12]
   })
 
