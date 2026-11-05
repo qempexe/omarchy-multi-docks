@@ -156,7 +156,7 @@ Scope {
   }
 
   function monOf(d) { const s = screenFor(d); return s ? s.name : ""; }
-  function sameGroup(a, b) { return a.edge === b.edge && monOf(a) === monOf(b); }
+  function sameGroup(a, b) { return !!a && !!b && a.edge === b.edge && monOf(a) === monOf(b); }
 
   function edgeLen(mon, edge) {
     const s = screenByName(mon);
@@ -188,12 +188,15 @@ Scope {
   }
 
   function slotLen(list, i) {
-    const d = list[i], mon = monOf(d);
+    const d = list[i];
+    if (!d) return 0;   // a dock that was just removed, until its window goes
+    const mon = monOf(d);
     const n = list.filter(x => sameGroup(x, d)).length;
     return Math.floor(usableLen(list, mon, d.edge) / n) - (n > 1 ? 6 : 0);
   }
 
   function capacity(list, i) {
+    if (!list[i]) return 0;
     const step = list[i].size + 12 + 6;
     return Math.max(0, Math.floor((slotLen(list, i) - 10 - 2 * endRoom(list[i])) / step) - 1);
   }
