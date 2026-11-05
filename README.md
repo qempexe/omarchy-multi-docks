@@ -109,7 +109,8 @@ Needs Omarchy 4 with Hyprland (it's Hyprland only).
 | Undo a setting | the **↺** next to it |
 
 A dot under an icon means the app has windows open. When a dock is full, **+**
-becomes **⋯** and opens the settings.
+becomes **⋯** and opens the settings. Uninstall an app and it leaves the docks by itself, a
+little after its desktop entry is gone.
 
 ### The app menu
 
@@ -145,6 +146,7 @@ defaults but keeps your apps and where the dock is. Click it twice.
 | Full length | off | stretch across the whole edge |
 | Margin | 6 | gap to the edge (or the bar), 0-64 px, shared by every dock on that edge |
 | Icon size | 44 | 1-64 px, always this dock only |
+| Icon scale | 100 | 50-200 %, the icons bigger or smaller inside the dock without changing the dock; they stop growing at its outline |
 
 <p align="center"><img src="screenshots/settings-place.png" alt="Place" width="440"></p>
 
@@ -266,6 +268,7 @@ Then `hyprctl reload`. You can find the class with `hyprctl clients | grep class
       "reserve": true,
       "style": "theme",
       "size": 44,
+      "iconScale": 100,
       "opacity": 90,
       "radius": 16,
       "monitor": "",
@@ -316,8 +319,10 @@ line, so the dock looks the same after the update. It's read at startup, so rest
   which can change if you swap ports.
 - Reserve space + auto-hide together means tiled windows resize every time the
   dock shows or hides. Pick one if that bugs you.
-- Bar detection looks for a layer named "bar" or a thin strip on an edge, every
-  few seconds. If it misses yours, raise the margin.
+- From Omarchy 4.5 the shell says where its bar is and how thick it is on each
+  screen, and the docks follow it as it moves, hides or comes back. Older versions
+  are checked every few seconds for a layer named "bar" or a thin strip on an edge.
+  If it misses yours, raise the margin.
 - Attention is per app, not per window, and needs the rule above on Omarchy.
 - Effects other than slide cost a bit of GPU while they play.
 - The dock's body is drawn once and again only when its look, size or colors
