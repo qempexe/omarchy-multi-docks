@@ -390,7 +390,9 @@ PanelWindow {
           function refreshIcon() {
             const n = (entry && entry.icon) ? entry.icon : "";
             if (n !== "") { iconName = n; return; }
-            if (iconName === "" && wins.length > 0) iconName = wins[0].appId || "";
+            // wins isn't there yet while the slot is still being made
+            const w = slot.wins || [];
+            if (iconName === "" && w.length > 0) iconName = w[0].appId || "";
           }
           onEntryChanged: refreshIcon()
           onWinsChanged: refreshIcon()
@@ -404,7 +406,8 @@ PanelWindow {
               if (entry.id) { cands.push(entry.id); cands.push(entry.id.toLowerCase()); }
               if (entry.startupClass) cands.push(entry.startupClass.toLowerCase());
             }
-            if (wins.length > 0 && wins[0].appId) { cands.push(wins[0].appId); cands.push(wins[0].appId.toLowerCase()); }
+            const w = slot.wins || [];
+            if (w.length > 0 && w[0].appId) { cands.push(w[0].appId); cands.push(w[0].appId.toLowerCase()); }
             cands.push("application-x-executable", "application-default-icon", "applications-other");
             for (const c of cands) {
               if (!c) continue;
