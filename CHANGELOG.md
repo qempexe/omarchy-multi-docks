@@ -4,6 +4,13 @@ All notable changes to Multi-Docks. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] - 2026-11-08
+
+### Fixed
+
+- Theme gradients now read Omarchy's named palette keys as well as indexed `color1` keys,
+  so themes such as Spectral use their full set of colors instead of accent shades.
+
 ## [2.3.0] - 2026-11-08
 
 ### Added
@@ -111,6 +118,7 @@ All notable changes to Multi-Docks. The format follows
 - Up to 12 docks with pinned apps, live previews, auto-hide, reserved space and per-edge
   margins.
 
+[2.3.1]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.0.3...v2.1.0

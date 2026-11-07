@@ -14,7 +14,7 @@ Scope {
   property var shell: null
   property var manifest: null
   // shown on the About tab: the manifest's version, which the shell hands over
-  readonly property string version: manifest && manifest.version ? String(manifest.version) : "2.3.0"
+  readonly property string version: manifest && manifest.version ? String(manifest.version) : "2.3.1"
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string cfgDir: home + "/.config/omarchy-dock"
@@ -93,7 +93,7 @@ Scope {
     return d;
   }
   // hot = attention color. mono keeps a soft red, a grey pulse would be invisible
-  // spectrum = the theme's own colors (color1 to color6, then their bright versions), for gradients
+  // spectrum = the theme's own colors, for gradients beyond the accent
   // that use more than the accent. Empty when there are none: gradients then use the accent's shades
   readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e", spectrum: [] })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
@@ -431,9 +431,13 @@ Scope {
       const m = t.match(new RegExp("^\\s*" + k + "\\s*=\\s*[\"']?(#[0-9a-fA-F]{6})", "m"));
       return m ? m[1] : null;
     };
+    const indexed = ["color1", "color2", "color3", "color4", "color5", "color6",
+                     "color9", "color10", "color11", "color12", "color13", "color14"];
+    const named = ["red", "orange", "yellow", "green", "cyan", "blue", "magenta", "brown",
+                   "bright_red", "bright_orange", "bright_yellow", "bright_green", "bright_cyan", "bright_blue", "bright_magenta", "bright_brown"];
+    const keys = indexed.some(k => pick(k)) ? indexed : named;
     const spectrum = [];
-    for (const k of ["color1", "color2", "color3", "color4", "color5", "color6",
-                     "color9", "color10", "color11", "color12", "color13", "color14"]) {
+    for (const k of keys) {
       const c = pick(k);
       if (c && spectrum.indexOf(c.toLowerCase()) < 0) spectrum.push(c.toLowerCase());
     }
