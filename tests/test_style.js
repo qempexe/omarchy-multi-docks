@@ -111,4 +111,52 @@ t("colors: lines, glass, gradients and light docks", () => {
   assert.ok(light.glass && light.light.indexOf("0.7") > 0)
   assert.strictEqual(Style.params(Object.assign({}, d, { surface: "clear" }), PAL, 300, 90, 11, {}).fill2, "")
 })
+t("gradients can run through the theme's colors", () => {
+  const SPEC = Object.assign({}, PAL, { spectrum: ["#cc3333", "#33cc33", "#3333cc", "#cccc33", "#cc33cc", "#33cccc"] })
+  const base = Object.assign(Style.defaults(), { opacity: 80, radius: 16, fill: "gradient" })
+  const stopsOf = p => { const ctx = fakeCtx(); Paint.paint(ctx, p); return ctx.calls.filter(c => c === "stop").length }
+  // several colors of the theme, each different, and the painter runs through all of them
+  const sp = Style.params(Object.assign({}, base, { gradientTo: "spectrum" }), SPEC, 300, 90, 11, {})
+  assert.strictEqual(sp.fillStops.length, SPEC.spectrum.length, "one stop for every theme color")
+  assert.strictEqual(new Set(sp.fillStops).size, sp.fillStops.length)
+  assert.ok(sp.fill2 !== "" && stopsOf(sp) >= sp.fillStops.length)
+  // one theme color, and the old choices, leave the stops alone
+  const one = Style.params(Object.assign({}, base, { gradientTo: "palette" }), SPEC, 300, 90, 11, {})
+  const acc = Style.params(Object.assign({}, base, { gradientTo: "accent" }), SPEC, 300, 90, 11, {})
+  assert.deepStrictEqual(one.fillStops, []); assert.ok(one.fill2 !== "" && one.fill2 !== acc.fill2)
+  for (const to of ["accent", "lighter", "darker"]) assert.deepStrictEqual(Style.params(Object.assign({}, base, { gradientTo: to }), SPEC, 300, 90, 11, {}).fillStops, [])
+  // surfaces that take no gradient, and a solid fill, stay as they are
+  assert.deepStrictEqual(Style.params(Object.assign({}, base, { gradientTo: "spectrum", surface: "frost" }), SPEC, 300, 90, 11, {}).fillStops, [])
+  assert.deepStrictEqual(Style.params(Object.assign({}, base, { gradientTo: "spectrum", fill: "solid" }), SPEC, 300, 90, 11, {}).fillStops, [])
+  // no theme colors (Custom, a theme without any): shades of the accent, and still painted
+  const none = Style.params(Object.assign({}, base, { gradientTo: "spectrum" }), PAL, 300, 90, 11, {})
+  assert.ok(none.fillStops.length >= 3 && stopsOf(none) >= 3)
+  // Monochrome stays without a hue, even through the theme's colors
+  const MONO = { bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e", spectrum: [] }
+  for (const c of Style.params(Object.assign({}, base, { gradientTo: "spectrum" }), MONO, 300, 90, 11, {}).fillStops) {
+    const [r, g, b] = c.match(/\d+/g).map(Number); assert.ok(r === g && g === b, c)
+  }
+  // gradient lines and accents: the old shade by default, the theme's colors when asked
+  const lines = to => Style.params(Object.assign({}, base, { fill: "solid", lines: "solid", outlineGradient: true, outlineGradientTo: to }), SPEC, 300, 90, 11, {})
+  assert.strictEqual(lines("lighter").lineGrad.length, 2); assert.strictEqual(lines("lighter").markGrad.length, 2)
+  assert.strictEqual(lines("accent").lineGrad.length, 2); assert.strictEqual(lines("palette").lineGrad.length, 2)
+  assert.notStrictEqual(lines("palette").lineGrad[1], lines("lighter").lineGrad[1])
+  assert.strictEqual(lines("spectrum").lineGrad.length, 1 + SPEC.spectrum.length); assert.strictEqual(lines("spectrum").markGrad.length, 1 + SPEC.spectrum.length)
+  // a full theme: all twelve colors
+  const TWELVE = Object.assign({}, PAL, { spectrum: Array.from({ length: 12 }, (_, i) => "#" + (0x102030 + i * 0x0a1a12).toString(16).padStart(6, "0")) })
+  const full = Style.params(Object.assign({}, base, { gradientTo: "spectrum" }), TWELVE, 300, 90, 11, {})
+  assert.strictEqual(full.fillStops.length, 12); assert.ok(stopsOf(full) >= 12)
+  assert.deepStrictEqual(Style.params(Object.assign({}, base, { outlineGradient: false, outlineGradientTo: "spectrum" }), SPEC, 300, 90, 11, {}).lineGrad, [])
+  assert.deepStrictEqual(Style.params(Object.assign({}, base, { outlineGradient: true, lines: "none", outlineGradientTo: "spectrum" }), SPEC, 300, 90, 11, {}).lineGrad, [])
+  Paint.paint(fakeCtx(), lines("spectrum"))
+  // saved configs: the new choices are kept, anything else (or nothing, in an older config) falls back
+  assert.strictEqual(Style.clean({ gradientTo: "spectrum", outlineGradientTo: "spectrum" }).gradientTo, "spectrum")
+  assert.strictEqual(Style.clean({ outlineGradientTo: "palette" }).outlineGradientTo, "palette")
+  assert.strictEqual(Style.clean({ outlineGradientTo: "rainbow" }).outlineGradientTo, "lighter")
+  assert.strictEqual(Style.clean({ gradientTo: "palette" }).gradientTo, "palette")
+  assert.strictEqual(Style.clean({}).outlineGradientTo, "lighter")
+  // a bad theme color is ignored, not drawn
+  const bad = Style.params(Object.assign({}, base, { gradientTo: "spectrum" }), Object.assign({}, PAL, { spectrum: ["nope", 5, "#12"] }), 300, 90, 11, {})
+  assert.ok(bad.fillStops.length >= 3)
+})
 console.log("\nALL OK (" + n + ")")

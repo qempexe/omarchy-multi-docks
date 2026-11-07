@@ -14,7 +14,7 @@ Scope {
   property var shell: null
   property var manifest: null
   // shown on the About tab: the manifest's version, which the shell hands over
-  readonly property string version: manifest && manifest.version ? String(manifest.version) : "2.2.0"
+  readonly property string version: manifest && manifest.version ? String(manifest.version) : "2.3.0"
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string cfgDir: home + "/.config/omarchy-dock"
@@ -93,7 +93,9 @@ Scope {
     return d;
   }
   // hot = attention color. mono keeps a soft red, a grey pulse would be invisible
-  readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e" })
+  // spectrum = the theme's own colors (color1 to color6, then their bright versions), for gradients
+  // that use more than the accent. Empty when there are none: gradients then use the accent's shades
+  readonly property var mono: ({ bg: "#161616", fg: "#e0e0e0", ac: "#ffffff", hot: "#ff6b5e", spectrum: [] })
   readonly property var defaultMargins: ({ top: 6, bottom: 6, left: 6, right: 6 })
 
   // empty until the config is read, so a default bottom dock never reserves space at startup
@@ -121,7 +123,8 @@ Scope {
       bg: validHex(d && d.customBg, defaults.customBg),
       fg: validHex(d && d.customFg, defaults.customFg),
       ac: validHex(d && d.accentColor, defaults.accentColor),
-      hot: theme.hot
+      hot: theme.hot,
+      spectrum: []
     };
     return theme;
   }
@@ -428,11 +431,18 @@ Scope {
       const m = t.match(new RegExp("^\\s*" + k + "\\s*=\\s*[\"']?(#[0-9a-fA-F]{6})", "m"));
       return m ? m[1] : null;
     };
+    const spectrum = [];
+    for (const k of ["color1", "color2", "color3", "color4", "color5", "color6",
+                     "color9", "color10", "color11", "color12", "color13", "color14"]) {
+      const c = pick(k);
+      if (c && spectrum.indexOf(c.toLowerCase()) < 0) spectrum.push(c.toLowerCase());
+    }
     const next = {
       bg: pick("background") || mono.bg,
       fg: pick("foreground") || mono.fg,
       ac: pick("accent") || mono.ac,
-      hot: pick("color1") || pick("color9") || mono.hot
+      hot: pick("color1") || pick("color9") || mono.hot,
+      spectrum: spectrum
     };
     if (JSON.stringify(next) !== JSON.stringify(theme)) theme = next;
   }

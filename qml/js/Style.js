@@ -43,8 +43,8 @@ var settings = {
     pointing:    { options: ["right", "left", "both"], fallback: "right" },
     flatSide:    { options: ["none", "edge", "windows"], fallback: "none" },
     surface:     { options: surfaces.options, fallback: "filled" },
-    fill:        { options: ["solid", "gradient", "glass"], fallback: "solid" },
-    gradientTo:  { options: ["accent", "lighter", "darker"], fallback: "accent" },
+    fill:        { options: ["solid", "gradient", "glass"], fallback: "gradient" },
+    gradientTo:  { options: ["accent", "palette", "spectrum", "lighter", "darker"], fallback: "spectrum" },
     gradientAcross: { bool: true, fallback: false },
     pattern:     { options: ["none", "stripes", "dots", "grid"], fallback: "none" },
     depth:       { options: ["flat", "raised", "sunken"], fallback: "flat" },
@@ -52,7 +52,8 @@ var settings = {
     border:      { options: ["subtle", "text", "accent"], fallback: "subtle" },
     borderWidth: { range: [1, 4], fallback: 1 },
     railSide:    { options: ["windows", "edge", "both"], fallback: "windows" },
-    outlineGradient: { bool: true, fallback: false },
+    outlineGradient: { bool: true, fallback: true },
+    outlineGradientTo: { options: ["lighter", "accent", "palette", "spectrum"], fallback: "spectrum" },
     ornaments:   { options: ornaments.options, fallback: "none" },
     shadow:      { options: ["none", "soft", "strong"], fallback: "soft" },
     shadowColor: { options: ["dark", "accent"], fallback: "dark" }
@@ -164,6 +165,27 @@ function css(c, a) {
 }
 function lum(c) { return (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255; }
 
+// ---- the theme's colors, for gradients -------------------------------------------------
+//
+// pal.spectrum is the theme's own colors in order (see Service.qml). A gradient that uses
+// more than the accent runs through all of them. Without any (Custom and Monochrome colors,
+// or a theme with none) it runs through shades of the accent instead, so a Monochrome dock
+// stays without a hue.
+
+// every color of the theme, in its order: [r, g, b] each, two at least
+function spectrumOf(pal, mine) {
+    const out = (pal && Array.isArray(pal.spectrum) ? pal.spectrum : []).filter(c => /^#[0-9a-fA-F]{6}$/.test(c)).map(c => rgb(c));
+    if (out.length === 1) out.unshift(mine);
+    if (out.length === 0) return [mine, mix(mine, [255, 255, 255], 0.45), mix(mine, [0, 0, 0], 0.4)];
+    return out;
+}
+// one color of the theme next to the accent (the second one, like Vitrine's "Next theme color")
+function paletteOf(pal, mine) {
+    const src = pal && Array.isArray(pal.spectrum) ? pal.spectrum.filter(c => /^#[0-9a-fA-F]{6}$/.test(c)) : [];
+    if (src.length === 0) return mix(mine, [255, 255, 255], 0.45);
+    return rgb(src[src.length > 1 ? 1 : 0]);
+}
+
 // ---- where the dock is -----------------------------------------------------------------
 
 // which side of the shape faces the windows, in the painter's terms (start = its top
@@ -202,9 +224,16 @@ function params(d, pal, w, h, margin, opts) {
     var k = typeof S.fill === "number" ? S.fill : 1;
     if (d.fill === "glass") k *= 0.55;
     var alpha = k * opacity / 100;
+    var ramp = spectrumOf(pal, mine);
     var target = d.gradientTo === "lighter" ? mix(base, [255, 255, 255], 0.2)
                : d.gradientTo === "darker" ? mix(base, [0, 0, 0], 0.35)
+               : d.gradientTo === "palette" ? mix(base, paletteOf(pal, mine), 0.45)
+               : d.gradientTo === "spectrum" ? mix(base, ramp[ramp.length - 1], 0.45)
                : mix(base, mine, 0.45);
+    // Theme colors: the fill runs through several of them, each tinted into the dock's color
+    var gradientOn = d.fill === "gradient" && S.noGradient !== true;
+    var fillStops = gradientOn && d.gradientTo === "spectrum"
+        ? ramp.map(function (c) { return css(mix(base, c, 0.45), alpha); }) : [];
     var Ln = Lines.byKey[d.lines] || Lines.byKey.none;
     var lw = 0, lineBase = mine, lineAlpha = 0.85;
     if (Ln.usesColor !== false) {
@@ -214,8 +243,22 @@ function params(d, pal, w, h, margin, opts) {
     }
     var lineColor = Ln.usesColor !== false ? css(lineBase, lineAlpha) : "";
     var grad = d.outlineGradient === true;
-    var lineGrad = grad && lw > 0 ? [css(lineBase, lineAlpha), css(mix(lineBase, [255, 255, 255], 0.55), Math.max(lineAlpha, 0.6))] : [];
-    var markGrad = grad ? [css(mine, 0.9), css(mix(mine, [255, 255, 255], 0.55), 0.9)] : [];
+    var fadeTo = d.outlineGradientTo;
+    var lineGrad = [], markGrad = [];
+    if (grad && fadeTo === "spectrum") {
+        // lines and accents run through the theme's colors
+        if (lw > 0) lineGrad = [css(lineBase, lineAlpha)].concat(ramp.map(function (c) { return css(c, 0.95); }));
+        markGrad = [css(mine, 0.9)].concat(ramp.map(function (c) { return css(c, 0.9); }));
+    } else if (grad) {
+        // the second color: a lighter shade (the default), the accent, or the theme's next color
+        var lineEnd = fadeTo === "accent" ? css(mine, 0.95)
+                    : fadeTo === "palette" ? css(paletteOf(pal, mine), 0.95)
+                    : css(mix(lineBase, [255, 255, 255], 0.55), Math.max(lineAlpha, 0.6));
+        var markEnd = fadeTo === "palette" ? css(paletteOf(pal, mine), 0.9)
+                    : css(mix(mine, [255, 255, 255], 0.55), 0.9);
+        if (lw > 0) lineGrad = [css(lineBase, lineAlpha), lineEnd];
+        markGrad = [css(mine, 0.9), markEnd];
+    }
 
     var blur = 0, shadow = "";
     if (d.shadow !== "none") {
@@ -243,7 +286,8 @@ function params(d, pal, w, h, margin, opts) {
         edge: "", concave: false, inner: inner,
         surface: d.surface, lines: d.lines, ornament: d.ornaments,
         fill: css(base, alpha),
-        fill2: d.fill === "gradient" && S.noGradient !== true ? css(target, alpha) : "",
+        fill2: gradientOn ? css(target, alpha) : "",
+        fillStops: fillStops,
         gradAcross: d.gradientAcross === true,
         glass: d.fill === "glass" && S.noGradient !== true,
         glassColor: lightBase ? css([255, 255, 255], 0.8) : css(fg, 0.22),

@@ -40,6 +40,8 @@
 //   concave           curved ears where an attached shape meets the screen edge
 //   inner             "start" | "end"   the side that faces the windows
 //   fill, fill2       css colors, fill2 for gradients ("" = no gradient)
+//   fillStops         css colors the gradient runs through, evenly, instead of fill to fill2
+//                     (the theme's colors); empty = just fill to fill2
 //   gradAcross        gradient across the dock (from the outer side in) instead of along it
 //   glass             a bright line on the outer side
 //   glassColor
@@ -274,9 +276,15 @@ function draw(ctx, p, W, H) {
         var style = p.fill || "rgba(0,0,0,0)";
         if (p.fill2) {
             var grad = p.gradAcross ? ctx.createLinearGradient(x0, y0, x0, y1) : ctx.createLinearGradient(x0, y0, x1, y0);
-            grad.addColorStop(0, p.fill);
-            grad.addColorStop(p.gradAcross ? 0.12 : 0.55, p.fill);
-            grad.addColorStop(1, p.fill2);
+            var stops = p.fillStops;
+            if (stops && stops.length > 1) {
+                // several colors, spread evenly (the theme's colors)
+                for (var si = 0; si < stops.length; si++) grad.addColorStop(si / (stops.length - 1), stops[si]);
+            } else {
+                grad.addColorStop(0, p.fill);
+                grad.addColorStop(p.gradAcross ? 0.12 : 0.55, p.fill);
+                grad.addColorStop(1, p.fill2);
+            }
             style = grad;
         }
         if (S.fillStyle) style = S.fillStyle(g, style);

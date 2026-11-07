@@ -59,7 +59,8 @@ Every dock has its own body, built from four parts you pick on their own:
 - **Ends**: 32 kinds, from rounded and capsule to arrows, ribbon, braces, puzzle,
   cartouche, fleur and onion dome. Pointed ones point left, right or both ways.
 - **Surface**: 30 materials, from faint and frost to brushed metal, carbon,
-  marble, velvet, wood, leather and stained glass, solid, as a gradient or as glass.
+  marble, velvet, wood, leather and stained glass, solid, as a gradient (into your
+  accent, or through all the colors of your theme) or as glass.
 - **Edge**: 22 lines, from a plain line to stitches, a chain, beads, a rope, a neon
   tube or a gilded frame. Wavy lines, chains and beads follow the ends all the way round.
 - **Ornaments**: 18 kinds, studs, rivets, pearls, rosettes, scrolls, crowns,
@@ -201,8 +202,8 @@ refuse one of them until you remove an icon or pick a smaller icon size.
 | --- | --- | --- |
 | Surface | solid | 30 kinds, from faint and frost to metal, marble, velvet and stained glass |
 | Opacity | 90 | how much of the dock's color shows, 1-100 % |
-| Fill | solid | solid, gradient or glass (for surfaces that take it) |
-| Gradient into | accent | accent, lighter or darker |
+| Fill | gradient | solid, gradient or glass (for surfaces that take it) |
+| Gradient into | theme colors | accent, the next theme color, theme colors (the fill runs through all the colors of your Omarchy theme), lighter or darker |
 | Gradient across | off | fade from the screen edge toward the windows instead of end to end |
 | Texture | none | stripes, dots or grid |
 | Depth | flat | raised or sunken |
@@ -219,7 +220,8 @@ refuse one of them until you remove an icon or pick a smaller icon size.
 | Line color | subtle | subtle, text color or accent. Accent also outlines the popups and this panel |
 | Line width | 1 | 1-4 px |
 | Rail on | windows side | windows side, screen edge or both (for Rail) |
-| Gradient lines | off | fade the lines into a lighter shade |
+| Gradient lines | on | fade the lines into a second color |
+| Fade into | theme colors | lighter, accent, the next theme color, or theme colors: the lines, and the accents drawn with them, run through all the colors of your theme |
 | Ornaments | none | 18 kinds, in the accent color |
 
 <p align="center"><img src="screenshots/settings-edge.png" alt="Edge" width="440"></p>
@@ -298,8 +300,8 @@ Then `hyprctl reload`. You can find the class with `hyprctl clients | grep class
       "pointing": "right",
       "flatSide": "none",
       "surface": "filled",
-      "fill": "solid",
-      "gradientTo": "accent",
+      "fill": "gradient",
+      "gradientTo": "spectrum",
       "gradientAcross": false,
       "pattern": "none",
       "depth": "flat",
@@ -307,7 +309,8 @@ Then `hyprctl reload`. You can find the class with `hyprctl clients | grep class
       "border": "subtle",
       "borderWidth": 1,
       "railSide": "windows",
-      "outlineGradient": false,
+      "outlineGradient": true,
+      "outlineGradientTo": "spectrum",
       "ornaments": "none",
       "shadow": "soft",
       "shadowColor": "dark"

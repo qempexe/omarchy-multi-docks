@@ -4,6 +4,24 @@ All notable changes to Multi-Docks. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-11-08
+
+### Added
+
+- **Theme colors** for the gradient fill. *Gradient into* now also has *Next theme color*
+  and *Theme colors*, which runs the dock through all the colors of your Omarchy theme (up
+  to twelve, in the theme's order), not only the accent. It follows the theme as it changes.
+- **Fade into** for gradient lines: a lighter shade (as before), the accent, the next
+  theme color, or all the theme's colors. With theme colors the accents drawn with the
+  lines (rails, brackets and the ornaments in the accent) run through them too.
+
+### Changed
+
+- New docks now start with the active Omarchy theme's full color spectrum on the fill and
+  lines. They update when you choose another theme; existing color choices stay editable.
+- With Custom or Monochrome colors there are no theme colors to use, so the gradient runs
+  through shades of the accent instead, and a Monochrome dock stays without a hue.
+
 ## [2.2.0] - 2026-11-05
 
 ### Added
@@ -93,6 +111,7 @@ All notable changes to Multi-Docks. The format follows
 - Up to 12 docks with pinned apps, live previews, auto-hide, reserved space and per-edge
   margins.
 
+[2.3.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.0.3...v2.1.0
 [2.0.3]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.0.2...v2.0.3
