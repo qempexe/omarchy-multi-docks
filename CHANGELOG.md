@@ -4,6 +4,14 @@ All notable changes to Multi-Docks. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.2] - 2026-11-08
+
+### Fixed
+
+- Dock icons now try matching files in standard icon directories and AdwaitaLegacy when
+  the active icon theme does not provide them. Apps without a usable image keep a visible
+  letter tile instead of a blank slot.
+
 ## [2.3.1] - 2026-11-08
 
 ### Fixed
@@ -118,6 +126,7 @@ All notable changes to Multi-Docks. The format follows
 - Up to 12 docks with pinned apps, live previews, auto-hide, reserved space and per-edge
   margins.
 
+[2.3.2]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.3.1...v2.3.2
 [2.3.1]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.3.0...v2.3.1
 [2.3.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/qempexe/omarchy-multi-docks/compare/v2.1.0...v2.2.0
