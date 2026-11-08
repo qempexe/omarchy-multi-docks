@@ -432,6 +432,15 @@ PanelWindow {
               if (!value) continue;
               if (value.startsWith("/")) add("file://" + value);
               else {
+                // Honor an explicit desktop-entry filename before testing a theme name
+                // with its suffix removed (for example TLauncher's tlauncher.png).
+                if (/\.(png|svg|xpm|jpg|jpeg|webp)$/i.test(value)) {
+                  add("file:///usr/share/icons/" + value);
+                  add("file:///usr/share/pixmaps/" + value);
+                  const dataHome = Quickshell.env("XDG_DATA_HOME") || (Quickshell.env("HOME") + "/.local/share");
+                  add("file://" + dataHome + "/icons/" + value);
+                  add("file://" + dataHome + "/pixmaps/" + value);
+                }
                 addTheme(value);
                 const bare = value.replace(/\.(png|svg|xpm|jpg|jpeg|webp)$/i, "");
                 if (bare !== value) addTheme(bare);
