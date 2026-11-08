@@ -387,9 +387,10 @@ PanelWindow {
           required property int index
           // reading .values re-runs this when quickshell rescans entries, so it never goes stale
           readonly property var entry: { DesktopEntries.applications.values; return DesktopEntries.byId(modelData); }
-          // last icon that resolved, so a rescan or theme change doesn't blank it
+          // Desktop entry icon name, with the live window class as a fallback.
           property string iconName: ""
           property int iconTick: 0
+          property int iconCandidateIndex: 0
           function refreshIcon() {
             const n = (entry && entry.icon) ? entry.icon : "";
             if (n !== "") { iconName = n; return; }
@@ -400,26 +401,85 @@ PanelWindow {
           onEntryChanged: refreshIcon()
           onWinsChanged: refreshIcon()
 
-          // only paths that exist in the icon theme, otherwise you get quickshell's magenta checkerboard
-          readonly property string iconSrc: {
+          // Try desktop-entry icon names, then image files shipped outside the icon theme.
+          // Some entries use a filename such as "tlauncher.png" even when that file is
+          // installed directly in /usr/share/icons rather than in a theme directory.
+          readonly property var iconCandidates: {
             slot.iconTick;
             const cands = [];
-            if (iconName !== "") { cands.push(iconName); cands.push(iconName.toLowerCase()); }
+            const add = (value) => {
+              const s = String(value || "").trim();
+              if (s && !cands.includes(s)) cands.push(s);
+            };
+            const addTheme = (name) => {
+              if (!name) return;
+              const r = Quickshell.iconPath(name, true);
+              if (r) add(r);
+            };
+            const rawNames = [];
+            if (iconName !== "") rawNames.push(iconName);
             if (entry) {
-              if (entry.id) { cands.push(entry.id); cands.push(entry.id.toLowerCase()); }
-              if (entry.startupClass) cands.push(entry.startupClass.toLowerCase());
+              if (entry.id) rawNames.push(entry.id, entry.id.toLowerCase());
+              if (entry.startupClass) rawNames.push(entry.startupClass, entry.startupClass.toLowerCase());
             }
             const w = slot.wins || [];
-            if (w.length > 0 && w[0].appId) { cands.push(w[0].appId); cands.push(w[0].appId.toLowerCase()); }
-            cands.push("application-x-executable", "application-default-icon", "applications-other");
-            for (const c of cands) {
-              if (!c) continue;
-              if (c.startsWith("/")) return "file://" + c;
-              const r = Quickshell.iconPath(c, true);
-              if (r) return r;
+            if (w.length > 0 && w[0].appId) rawNames.push(w[0].appId, w[0].appId.toLowerCase());
+            const iconNames = Array.from(new Set(rawNames));
+
+            // Preserve explicit file paths and try icon names with and without a file suffix.
+            for (const name of iconNames) {
+              const value = String(name || "").trim();
+              if (!value) continue;
+              if (value.startsWith("/")) add("file://" + value);
+              else {
+                addTheme(value);
+                const bare = value.replace(/\.(png|svg|xpm|jpg|jpeg|webp)$/i, "");
+                if (bare !== value) addTheme(bare);
+              }
             }
-            return "";
+
+            // Some desktop icons live in a different installed theme than the active one.
+            // Search the usual shared icon sizes, including AdwaitaLegacy's legacy category.
+            const iconDirs = [
+              "/usr/share/icons/AdwaitaLegacy/48x48/legacy/",
+              "/usr/share/icons/AdwaitaLegacy/32x32/legacy/",
+              "/usr/share/icons/AdwaitaLegacy/24x24/legacy/",
+              "/usr/share/icons/AdwaitaLegacy/16x16/legacy/",
+              "/usr/share/icons/hicolor/256x256/apps/",
+              "/usr/share/icons/hicolor/48x48/apps/",
+              "/usr/share/icons/hicolor/scalable/apps/",
+              "/usr/share/pixmaps/"
+            ];
+            const formats = ["png", "svg", "xpm"];
+            for (const name of iconNames) {
+              const value = String(name || "").trim();
+              if (!value || value.startsWith("/")) continue;
+              const base = value.replace(/\.(png|svg|xpm|jpg|jpeg|webp)$/i, "");
+              if (!base || base.includes("/")) continue;
+              for (const dir of iconDirs) {
+                for (const ext of formats) add("file://" + dir + base + "." + ext);
+              }
+            }
+
+            // Desktop files sometimes name an image that is stored outside the theme.
+            for (const name of iconNames) {
+              const value = String(name || "").trim();
+              if (!value || value.startsWith("/") || !/\.(png|svg|xpm|jpg|jpeg|webp)$/i.test(value)) continue;
+              add("file:///usr/share/icons/" + value);
+              add("file:///usr/share/pixmaps/" + value);
+              const dataHome = Quickshell.env("XDG_DATA_HOME") || (Quickshell.env("HOME") + "/.local/share");
+              add("file://" + dataHome + "/icons/" + value);
+              add("file://" + dataHome + "/pixmaps/" + value);
+            }
+
+            for (const fallback of ["application-x-executable", "application-default-icon", "applications-other"]) {
+              addTheme(fallback);
+            }
+            return cands;
           }
+          onIconCandidatesChanged: iconCandidateIndex = 0
+          readonly property string iconSrc: iconCandidateIndex < iconCandidates.length
+            ? iconCandidates[iconCandidateIndex] : ""
           // icon theme can change (theme switch), so retry every few seconds while nothing resolves
           Timer {
             interval: 3000; repeat: true
@@ -484,10 +544,15 @@ PanelWindow {
           }
 
           IconImage {
+            id: appIcon
             anchors.centerIn: parent
             implicitSize: win.iconPx
-            visible: slot.iconSrc !== ""
+            visible: slot.iconSrc !== "" && status !== Image.Error
             source: slot.iconSrc
+            onStatusChanged: {
+              if (status === Image.Error && slot.iconCandidateIndex < slot.iconCandidates.length - 1)
+                slot.iconCandidateIndex++;
+            }
           }
 
           // letter tile when there's no icon at all
@@ -495,7 +560,7 @@ PanelWindow {
             anchors.centerIn: parent
             width: win.iconPx; height: win.iconPx
             radius: width * 0.25
-            visible: slot.iconSrc === ""
+            visible: slot.iconSrc === "" || appIcon.status === Image.Error
             color: Qt.alpha(win.pal.fg, 0.15)
             Text {
               anchors.centerIn: parent
